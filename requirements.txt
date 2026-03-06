@@ -1,0 +1,7 @@
+PyMuPDF>=1.23.0
+langgraph>=0.0.26
+langchain-core>=0.1.30
+google-genai>=0.2.0
+pydantic>=2.6.0
+neo4j>=5.17.0
+python-dotenv>=1.0.0
