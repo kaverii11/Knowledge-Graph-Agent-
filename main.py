@@ -1,8 +1,13 @@
 import argparse
 import json
 import os
+import warnings
 from dotenv import load_dotenv
 from typing import List, Dict, Any
+
+# Suppress the false-positive LangChain deprecation warning for Python 3.14
+warnings.filterwarnings("ignore", message=".*Pydantic V1.*")
+
 from utils.pdf_parser import parse_pdf_structural
 from agent.graph import build_graph, GraphState
 
@@ -17,16 +22,24 @@ def process_pdf(file_path: str, output_path: str):
     graph = build_graph()
     
     # 2. Parse PDF into structural chunks
-    chunks_iterator = parse_pdf_structural(file_path, context_window_size=2)
+    print("Parsing PDF...")
+    chunks = list(parse_pdf_structural(file_path, context_window_size=2))
     
+    print(f"DEBUG: Successfully extracted {len(chunks)} structural chunks.")
+    
+    if len(chunks) == 0:
+        print("DEBUG: Halting. The parser couldn't read the PDF structure.")
+        return
+        
     all_extracted_references = []
     
-    for i, chunk_data in enumerate(chunks_iterator):
+    for i, chunk_data in enumerate(chunks):
         print(f"Processing chunk {i+1} on page {chunk_data['page_number']}...")
         
         # 3. Create initial state
         initial_state = {
             "chunk_text": chunk_data["chunk_text"],
+            "chunk_image_bytes": chunk_data.get("chunk_image_bytes"),
             "context_text": chunk_data["context_text"],
             "page_number": chunk_data["page_number"],
             "references": [],
