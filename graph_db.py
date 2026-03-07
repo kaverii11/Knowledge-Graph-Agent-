@@ -1,9 +1,10 @@
 import os
 import re
 import json
+import numpy as np
 from dotenv import load_dotenv
 from neo4j import GraphDatabase, exceptions
-from thefuzz import fuzz, process
+from google import genai
 
 class Neo4jConnection:
     def __init__(self, uri, user, pwd):
@@ -44,11 +45,14 @@ def is_strict_sebi_format(title: str) -> bool:
     pattern = r"^(SEBI|CIR|PR|SMDRP)\/.*[\d]{4}.*"
     return bool(re.match(pattern, title.upper()))
 
-def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
+def cosine_similarity(a, b):
+    return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
+
+def resolve_entities(extracted_references: list, client: genai.Client, threshold: float = 0.88) -> list:
     """
-    Takes a list of reference dictionaries, extracts all unique entity titles, and clusters
-    them using fuzzy string matching. Updates all references to map to a single "canonical"
-    title (the longest one in the cluster) for deduplication before Neo4j ingestion.
+    Takes a list of reference dictionaries, separates strict SEBI circular IDs, 
+    and clusters the remaining natural language entities using Gemini text embeddings 
+    and cosine similarity.
     """
     unique_titles = set()
     for ref in extracted_references:
@@ -60,32 +64,47 @@ def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
     
     # Track which titles map to which canonical title
     canonical_mapping = {}
+    natural_titles = []
     
-    # To avoid merging a title twice into different clusters, track resolved ones
+    # 1. Filter out strict SEBI format
+    for title in unique_titles:
+        if is_strict_sebi_format(title):
+            canonical_mapping[title] = title
+        else:
+            natural_titles.append(title)
+            
+    if not natural_titles:
+        return extracted_references
+
+    # 2. Get embeddings for all natural language titles
+    print(f"Generating embeddings for {len(natural_titles)} entities...")
+    try:
+        response = client.models.embed_content(
+            model='gemini-embedding-001',
+            contents=natural_titles
+        )
+        embeddings = [np.array(e.values) for e in response.embeddings]
+    except Exception as e:
+        print(f"Failed to generate embeddings: {e}")
+        return extracted_references
+
+    # 3. Cluster using cosine similarity
     resolved = set()
     
-    for i, title in enumerate(unique_titles):
+    for i, title in enumerate(natural_titles):
         if title in resolved:
-            continue
-            
-        # If it's a strict SEBI ID, treat it as its own canonical entity
-        if is_strict_sebi_format(title):
-            resolved.add(title)
-            canonical_mapping[title] = title
             continue
             
         cluster = [title]
         resolved.add(title)
         
         # Compare against remaining unresolved titles
-        for j in range(i + 1, len(unique_titles)):
-            other_title = unique_titles[j]
-            if other_title in resolved or is_strict_sebi_format(other_title):
+        for j in range(i + 1, len(natural_titles)):
+            other_title = natural_titles[j]
+            if other_title in resolved:
                 continue
                 
-            # token_sort_ratio handles words in different orders 
-            # (e.g., "Depositories Act, 1996" vs "1996 Depositories Act")
-            score = fuzz.token_sort_ratio(title, other_title)
+            score = cosine_similarity(embeddings[i], embeddings[j])
             
             if score >= threshold:
                 cluster.append(other_title)
@@ -99,7 +118,7 @@ def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
         for variant in cluster:
             canonical_mapping[variant] = canonical_name
             if variant != canonical_name:
-                print(f"  [Entity Resolution] Merged: '{variant}' -> '{canonical_name}'")
+                print(f"  [Semantic Merge] '{variant}' -> '{canonical_name}'")
                 
     # Update the references array in-place
     for ref in extracted_references:
@@ -109,7 +128,7 @@ def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
             
     return extracted_references
 
-def ingest_data(conn: Neo4jConnection, json_file: str, circular_id: str):
+def ingest_data(conn: Neo4jConnection, client: genai.Client, json_file: str, circular_id: str):
     """
     Reads the extracted references and populates the Neo4j Graph.
     """
@@ -120,9 +139,9 @@ def ingest_data(conn: Neo4jConnection, json_file: str, circular_id: str):
         print(f"File {json_file} not found. Have you run the extractor yet?")
         return
 
-    # 0. Entity Resolution (Deduplication)
+    # 0. Entity Resolution (Deduplication via Semantic Embeddings)
     print("Running Entity Resolution on extracted references...")
-    data = resolve_entities(data, threshold=85)
+    data = resolve_entities(data, client, threshold=0.88)
 
     # Create the root Circular node
     circular_query = """
@@ -195,9 +214,12 @@ if __name__ == "__main__":
     NEO4J_USER = os.getenv("NEO4J_USERNAME", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
     
+    api_key = os.getenv("GEMINI_API_KEY")
+    client = genai.Client(api_key=api_key)
+    
     conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
     
     # We use a hardcoded circular ID for the dummy JSON we tested earlier
-    ingest_data(conn, "sebi_references.json", "sample_sebi_circular")
+    ingest_data(conn, client, "sebi_references.json", "sample_sebi_circular")
     
     conn.close()
