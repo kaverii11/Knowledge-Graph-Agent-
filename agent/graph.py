@@ -96,7 +96,7 @@ def extract_fast_llm(state: GraphState) -> GraphState:
     try:
         response = generate_content_with_retry(
             client=client,
-            model='gemini-2.5-flash', # Flash model for fast extraction
+            model='gemini-2.0-flash', # Pivot to 2.0-flash to bypass 2.5 quotas
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
@@ -161,7 +161,7 @@ def refine_pro(state: GraphState) -> GraphState:
     try:
         response = generate_content_with_retry(
             client=client,
-            model='gemini-2.5-pro',
+            model='gemini-2.0-flash', # Pivot to 2.0-flash for fallback to bypass 2.5-pro quotas
             contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
