@@ -54,8 +54,8 @@ def get_llm_client():
     return genai.Client()
 
 @retry(
-    stop=stop_after_attempt(10),
-    wait=wait_exponential(multiplier=2, min=4, max=65),
+    stop=stop_after_attempt(8),
+    wait=wait_exponential(multiplier=2, min=15, max=70),
     retry=retry_if_exception_type(Exception)
 )
 def generate_content_with_retry(client, model, contents, config):
