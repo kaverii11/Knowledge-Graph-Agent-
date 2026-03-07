@@ -7,6 +7,7 @@ from schemas.models import ExtractedReference, ExtractionResult, ExtractionMetho
 from google import genai
 from google.genai import types
 from pydantic import ValidationError
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 class GraphState(TypedDict):
     chunk_text: str
@@ -48,6 +49,18 @@ def get_llm_client():
     # Relies on GEMINI_API_KEY environment variable
     return genai.Client()
 
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=10),
+    retry=retry_if_exception_type(Exception)
+)
+def generate_content_with_retry(client, model, contents, config):
+    return client.models.generate_content(
+        model=model,
+        contents=contents,
+        config=config
+    )
+
 def extract_fast_llm(state: GraphState) -> GraphState:
     client = get_llm_client()
     text = state["chunk_text"]
@@ -66,7 +79,8 @@ def extract_fast_llm(state: GraphState) -> GraphState:
     """
     
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash', # Flash model for fast extraction
             contents=prompt,
             config=types.GenerateContentConfig(
@@ -122,7 +136,8 @@ def refine_pro(state: GraphState) -> GraphState:
     """
     
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-pro',
             contents=prompt,
             config=types.GenerateContentConfig(
