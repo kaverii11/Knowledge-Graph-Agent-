@@ -1,7 +1,7 @@
 import re
 import os
 import json
-from typing import TypedDict, List, Dict, Any, Literal
+from typing import TypedDict, List, Dict, Any, Literal, Optional
 from langgraph.graph import StateGraph, END
 from schemas.models import ExtractedReference, ExtractionResult, ExtractionMethod, ReferenceType
 from google import genai
@@ -11,6 +11,7 @@ from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_excep
 
 class GraphState(TypedDict):
     chunk_text: str
+    chunk_image_bytes: Optional[bytes]
     context_text: str
     page_number: int
     references: List[ExtractedReference]
@@ -21,6 +22,9 @@ def extract_regex(state: GraphState) -> GraphState:
     text = state["chunk_text"]
     references = state.get("references", [])
     
+    if not text:
+        return {"references": references}
+        
     # Simple regex for SEBI circular formats like: SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/71
     sebi_pattern = r"(SEBI/[A-Z0-9/\-]+(?:CIR|Master)[/\w\-]+)"
     matches = re.finditer(sebi_pattern, text)
@@ -50,8 +54,8 @@ def get_llm_client():
     return genai.Client()
 
 @retry(
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=2, max=10),
+    stop=stop_after_attempt(10),
+    wait=wait_exponential(multiplier=2, min=4, max=65),
     retry=retry_if_exception_type(Exception)
 )
 def generate_content_with_retry(client, model, contents, config):
@@ -65,24 +69,31 @@ def extract_fast_llm(state: GraphState) -> GraphState:
     client = get_llm_client()
     text = state["chunk_text"]
     context = state["context_text"]
+    image_bytes = state.get("chunk_image_bytes")
     references = state.get("references", [])
     
     prompt = f"""
-    You are a legal AI assistant. Extract all mentions of other legal documents, circulars, acts, or regulations from the chunk.
+    You are a legal AI assistant. Extract all mentions of other legal documents, circulars, acts, or regulations from the document.
     Do not duplicate standard SEBI circular IDs if you see them, but extract names of Acts, Regulations, or non-standard references.
     
     Context from previous sections (use for resolving pronouns like 'the aforementioned act'):
     {context}
-    
-    Current Text Chunk to process:
-    {text}
     """
+    
+    if text:
+        prompt += f"\n\nCurrent Text Chunk to process:\n{text}"
+    else:
+        prompt += "\n\nPlease extract references from the attached document image."
+    
+    contents = [prompt]
+    if image_bytes:
+        contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
     
     try:
         response = generate_content_with_retry(
             client=client,
             model='gemini-2.5-flash', # Flash model for fast extraction
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=ExtractionResult,
@@ -125,21 +136,29 @@ def refine_pro(state: GraphState) -> GraphState:
     client = get_llm_client()
     text = state["chunk_text"]
     context = state["context_text"]
+    image_bytes = state.get("chunk_image_bytes")
     
     prompt = f"""
-    The previous extraction had validation issues or low confidence. Please carefully extract all legal references from this text.
+    The previous extraction had validation issues or low confidence. Please carefully extract all legal references from this document.
     Ensure high accuracy.
     
     Context: {context}
-    
-    Text: {text}
     """
+    
+    if text:
+        prompt += f"\n\nText: {text}"
+    else:
+        prompt += "\n\nPlease carefully extract references from the attached document image."
+    
+    contents = [prompt]
+    if image_bytes:
+        contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
     
     try:
         response = generate_content_with_retry(
             client=client,
             model='gemini-2.5-pro',
-            contents=prompt,
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_mime_type="application/json",
                 response_schema=ExtractionResult,
