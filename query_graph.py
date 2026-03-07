@@ -31,7 +31,7 @@ class Neo4jConnection:
 
 def get_cypher_query(question: str, client: genai.Client) -> str:
     """
-    Translates a natural language question into a Cypher query using Gemini Pro.
+    Translates a natural language question into a Cypher query using Gemini Flash.
     """
     prompt = f"""
     You are an expert Neo4j Cypher query writer.
@@ -51,7 +51,7 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-pro',
+            model='gemini-2.5-flash',
             contents=prompt,
         )
         
@@ -62,24 +62,8 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
         
         return query.strip()
     except Exception as e:
-        if "429" in str(e) or "RESOURCE_EXHAUSTED" in str(e):
-            print("  [Agent] Rate limit hit on Gemini Pro. Falling back to Gemini Flash for Cypher generation...")
-            try:
-                response = client.models.generate_content(
-                    model='gemini-2.5-flash',
-                    contents=prompt,
-                )
-                query = response.text.strip()
-                query = re.sub(r"^```(cypher)?\n", "", query, flags=re.IGNORECASE)
-                query = re.sub(r"\n```$", "", query)
-                
-                return query.strip()
-            except Exception as flash_e:
-                print(f"Error generating Cypher with fallback: {flash_e}")
-                return ""
-        else:
-            print(f"Error generating Cypher: {e}")
-            return ""
+        print(f"Error generating Cypher: {e}")
+        return ""
 
 def synthesize_answer(question: str, results: list, client: genai.Client) -> str:
     """
@@ -136,7 +120,7 @@ def chat_interface():
             if not question.strip():
                 continue
                 
-            print("\n  [Agent] Generating Cypher query (Gemini Pro)...")
+            print("\n  [Agent] Generating Cypher query (Gemini Flash)...")
             cypher_query = get_cypher_query(question, client)
             
             if not cypher_query:
