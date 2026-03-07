@@ -59,11 +59,15 @@ def get_llm_client():
     retry=retry_if_exception_type(Exception)
 )
 def generate_content_with_retry(client, model, contents, config):
-    return client.models.generate_content(
-        model=model,
-        contents=contents,
-        config=config
-    )
+    try:
+        return client.models.generate_content(
+            model=model,
+            contents=contents,
+            config=config
+        )
+    except Exception as e:
+        print(f"DEBUG: Gemini API attempt failed. Error: {e}")
+        raise
 
 def extract_fast_llm(state: GraphState) -> GraphState:
     client = get_llm_client()
