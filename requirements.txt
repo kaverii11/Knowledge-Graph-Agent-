@@ -9,3 +9,4 @@ python-dotenv>=1.0.0
 pytesseract>=0.3.10
 pdf2image>=1.17.0
 tenacity>=8.2.0
+thefuzz[speedup]

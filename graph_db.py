@@ -2,6 +2,7 @@ import os
 import json
 from dotenv import load_dotenv
 from neo4j import GraphDatabase, exceptions
+from thefuzz import fuzz, process
 
 class Neo4jConnection:
     def __init__(self, uri, user, pwd):
@@ -35,6 +36,65 @@ class Neo4jConnection:
             print(f"Query failed: {e}")
             return None
 
+def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
+    """
+    Takes a list of reference dictionaries, extracts all unique entity titles, and clusters
+    them using fuzzy string matching. Updates all references to map to a single "canonical"
+    title (the longest one in the cluster) for deduplication before Neo4j ingestion.
+    """
+    unique_titles = set()
+    for ref in extracted_references:
+        title = ref.get("title")
+        if title:
+            unique_titles.add(title)
+            
+    unique_titles = list(unique_titles)
+    
+    # Track which titles map to which canonical title
+    canonical_mapping = {}
+    
+    # To avoid merging a title twice into different clusters, track resolved ones
+    resolved = set()
+    
+    for i, title in enumerate(unique_titles):
+        if title in resolved:
+            continue
+            
+        cluster = [title]
+        resolved.add(title)
+        
+        # Compare against remaining unresolved titles
+        for j in range(i + 1, len(unique_titles)):
+            other_title = unique_titles[j]
+            if other_title in resolved:
+                continue
+                
+            # token_sort_ratio handles words in different orders 
+            # (e.g., "Depositories Act, 1996" vs "1996 Depositories Act")
+            score = fuzz.token_sort_ratio(title, other_title)
+            
+            if score >= threshold:
+                cluster.append(other_title)
+                resolved.add(other_title)
+                
+        # Determine the canonical name for this cluster (typically the longest/most descriptive)
+        # Using string length as a simple proxy for descriptiveness
+        canonical_name = max(cluster, key=len)
+        
+        # Map all variants in the cluster to the canonical name
+        for variant in cluster:
+            canonical_mapping[variant] = canonical_name
+            if variant != canonical_name:
+                print(f"  [Entity Resolution] Merged: '{variant}' -> '{canonical_name}'")
+                
+    # Update the references array in-place
+    for ref in extracted_references:
+        original_title = ref.get("title")
+        if original_title in canonical_mapping:
+            ref["title"] = canonical_mapping[original_title]
+            
+    return extracted_references
+
 def ingest_data(conn: Neo4jConnection, json_file: str, circular_id: str):
     """
     Reads the extracted references and populates the Neo4j Graph.
@@ -45,6 +105,10 @@ def ingest_data(conn: Neo4jConnection, json_file: str, circular_id: str):
     except FileNotFoundError:
         print(f"File {json_file} not found. Have you run the extractor yet?")
         return
+
+    # 0. Entity Resolution (Deduplication)
+    print("Running Entity Resolution on extracted references...")
+    data = resolve_entities(data, threshold=85)
 
     # Create the root Circular node
     circular_query = """
