@@ -1,4 +1,5 @@
 import os
+import re
 import json
 from dotenv import load_dotenv
 from neo4j import GraphDatabase, exceptions
@@ -36,6 +37,13 @@ class Neo4jConnection:
             print(f"Query failed: {e}")
             return None
 
+def is_strict_sebi_format(title: str) -> bool:
+    """
+    Checks if a title strictly follows SEBI circular patterns to bypass fuzzy matching.
+    """
+    pattern = r"^(SEBI|CIR|PR|SMDRP)\/.*[\d]{4}.*"
+    return bool(re.match(pattern, title.upper()))
+
 def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
     """
     Takes a list of reference dictionaries, extracts all unique entity titles, and clusters
@@ -60,13 +68,19 @@ def resolve_entities(extracted_references: list, threshold: int = 85) -> list:
         if title in resolved:
             continue
             
+        # If it's a strict SEBI ID, treat it as its own canonical entity
+        if is_strict_sebi_format(title):
+            resolved.add(title)
+            canonical_mapping[title] = title
+            continue
+            
         cluster = [title]
         resolved.add(title)
         
         # Compare against remaining unresolved titles
         for j in range(i + 1, len(unique_titles)):
             other_title = unique_titles[j]
-            if other_title in resolved:
+            if other_title in resolved or is_strict_sebi_format(other_title):
                 continue
                 
             # token_sort_ratio handles words in different orders 
