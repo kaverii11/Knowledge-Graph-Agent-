@@ -1,5 +1,7 @@
 import fitz  # PyMuPDF
 import re
+import pytesseract
+from pdf2image import convert_from_path
 from typing import Iterator, Dict, Any, List
 
 def is_structural_marker(text: str) -> bool:
@@ -38,19 +40,27 @@ def parse_pdf_structural(file_path: str, context_window_size: int = 2) -> Iterat
     chunks: List[Dict[str, Any]] = []
 
     with fitz.open(file_path) as doc:
-        for page_num in range(len(doc)):
-            page = doc[page_num]
-            
-            # Get blocks of text. block is a tuple: (x0, y0, x1, y1, "text", block_no, block_type)
-            blocks = page.get_text("blocks")
-            
-            for block in blocks:
-                # Check if block is text (block_type == 0)
-                if len(block) >= 7 and block[6] == 0:
-                    text = block[4].strip()
+        # Optional OCR Flag
+        needs_ocr = False
+        
+        # Check overall text content of the document. If it's effectively 0, it's a scanned PDF.
+        full_doc_text = "".join([doc[i].get_text() for i in range(min(5, len(doc)))])
+        if len(full_doc_text.strip()) < 50:
+            print("  [Parser] No native text layer detected. Falling back to OCR...")
+            needs_ocr = True
+
+        if needs_ocr:
+            # OCR Path (String-based parsing)
+            images = convert_from_path(file_path)
+            for page_num, img in enumerate(images):
+                page_text = pytesseract.image_to_string(img)
+                lines = page_text.split('\n')
+                
+                for line in lines:
+                    text = line.strip()
                     if not text:
                         continue
-                    
+                        
                     # If we find a structural marker, we flush the current chunk
                     if is_structural_marker(text):
                         if current_chunk_text.strip():
@@ -66,6 +76,36 @@ def parse_pdf_structural(file_path: str, context_window_size: int = 2) -> Iterat
                         if not current_chunk_text:
                             current_chunk_start_page = page_num + 1
                         current_chunk_text += text + "\n"
+        else:
+            # Native PyMuPDF Path (Block-based parsing)
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                
+                # Get blocks of text
+                blocks = page.get_text("blocks")
+                
+                for block in blocks:
+                    # Check if block is text (block_type == 0)
+                    if len(block) >= 7 and block[6] == 0:
+                        text = block[4].strip()
+                        if not text:
+                            continue
+                        
+                        # If we find a structural marker, we flush the current chunk
+                        if is_structural_marker(text):
+                            if current_chunk_text.strip():
+                                chunks.append({
+                                    "chunk_text": current_chunk_text.strip(),
+                                    "page_number": current_chunk_start_page
+                                })
+                            # Start a new chunk
+                            current_chunk_text = text + "\n"
+                            current_chunk_start_page = page_num + 1 # 1-indexed
+                        else:
+                            # Append to current chunk
+                            if not current_chunk_text:
+                                current_chunk_start_page = page_num + 1
+                            current_chunk_text += text + "\n"
                         
     # Flush the last chunk
     if current_chunk_text.strip():

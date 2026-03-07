@@ -5,3 +5,5 @@ google-genai>=0.2.0
 pydantic>=2.6.0
 neo4j>=5.17.0
 python-dotenv>=1.0.0
+pytesseract>=0.3.10
+pdf2image>=1.17.0
