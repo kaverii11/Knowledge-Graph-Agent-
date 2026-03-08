@@ -4,6 +4,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 from neo4j import GraphDatabase
+from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 # Using the same Neo4jConnection we built for graph_db.py
 class Neo4jConnection:
@@ -13,7 +14,7 @@ class Neo4jConnection:
         self.__password = pwd
         self.__driver = None
         try:
-            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password))
+            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password), max_connection_lifetime=200)
             self.__driver.verify_connectivity()
         except Exception as e:
             print(f"Error connecting to Neo4j: {e}")
@@ -33,11 +34,26 @@ class Neo4jConnection:
             # If the connection was reset by peer (e.g. timeout), try to reconnect once
             print(f"  [Neo4j Driver] Connection dropped ({e}). Attempting to reconnect...")
             self.close()
-            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password))
+            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password), max_connection_lifetime=200)
             self.__driver.verify_connectivity()
             with self.__driver.session() as session:
                 result = session.run(query, parameters)
                 return [record.data() for record in result]
+
+@retry(
+    stop=stop_after_attempt(8),
+    wait=wait_exponential(multiplier=2, min=15, max=70),
+    retry=retry_if_exception_type(Exception)
+)
+def generate_content_with_retry(client, model, contents):
+    try:
+        return client.models.generate_content(
+            model=model,
+            contents=contents,
+        )
+    except Exception as e:
+        print(f"  [Gemini API] Retryable Error: {e}")
+        raise
 
 def get_cypher_query(question: str, client: genai.Client) -> str:
     """
@@ -48,19 +64,26 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     Translate the user's natural language question into a valid Cypher query.
     
     Database Schema:
-    - Nodes: Circular (properties: id), Clause (properties: text, page_number), Entity (properties: name, type)
-    - Relationships: (Circular)-[:CONTAINS]->(Clause), (Clause)-[:REFERENCES]->(Entity), (Clause)-[:MODIFIES]->(Entity)
+    - Nodes: 
+      - (c:Circular {{id, file_name}})
+      - (cl:Clause {{text, page_number}})
+      - (e:Entity {{name, type, canonical_name}})
+    - Relationships: 
+      - (c)-[:CONTAINS]->(cl)
+      - (cl)-[:REFERENCES]->(e)
+      - (cl)-[:MODIFIES]->(e)
     
     User Question: {question}
     
     Instructions:
     - Only return the raw Cypher query string.
     - Do not include markdown formatting like ```cypher.
-    - Use case-insensitive matching where appropriate (e.g. toLower(e.name) CONTAINS toLower('...')).
+    - Use case-insensitive fuzzy matching when querying text. e.g. MUST use toLower(cl.text) CONTAINS toLower('keyword'). Never use exact equality for text.
     """
     
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash-lite',
             contents=prompt,
         )
@@ -94,7 +117,8 @@ def synthesize_answer(question: str, results: list, client: genai.Client) -> str
     """
     
     try:
-        response = client.models.generate_content(
+        response = generate_content_with_retry(
+            client=client,
             model='gemini-2.5-flash-lite',
             contents=prompt,
         )
