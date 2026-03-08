@@ -25,9 +25,19 @@ class Neo4jConnection:
     def execute_query(self, query, parameters=None):
         if self.__driver is None:
             raise Exception("Driver not initialized.")
-        with self.__driver.session() as session:
-            result = session.run(query, parameters)
-            return [record.data() for record in result]
+        try:
+            with self.__driver.session() as session:
+                result = session.run(query, parameters)
+                return [record.data() for record in result]
+        except Exception as e:
+            # If the connection was reset by peer (e.g. timeout), try to reconnect once
+            print(f"  [Neo4j Driver] Connection dropped ({e}). Attempting to reconnect...")
+            self.close()
+            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password))
+            self.__driver.verify_connectivity()
+            with self.__driver.session() as session:
+                result = session.run(query, parameters)
+                return [record.data() for record in result]
 
 def get_cypher_query(question: str, client: genai.Client) -> str:
     """
@@ -51,7 +61,7 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.5-flash-lite',
             contents=prompt,
         )
         
@@ -85,7 +95,7 @@ def synthesize_answer(question: str, results: list, client: genai.Client) -> str
     
     try:
         response = client.models.generate_content(
-            model='gemini-2.5-flash',
+            model='gemini-2.5-flash-lite',
             contents=prompt,
         )
         return response.text.strip()
