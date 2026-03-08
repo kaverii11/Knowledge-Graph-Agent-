@@ -65,7 +65,7 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     
     Database Schema:
     - Nodes: 
-      - (c:Circular {{id, file_name}})
+      - (c:Circular {{id}})  // Note: Circular nodes ONLY have an 'id' property. Do NOT use 'file_name' or other guessed properties.
       - (cl:Clause {{text, page_number}})
       - (e:Entity {{name, type, canonical_name}})
     - Relationships: 
@@ -79,6 +79,7 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     - Only return the raw Cypher query string.
     - Do not include markdown formatting like ```cypher.
     - Use case-insensitive fuzzy matching when querying text. e.g. MUST use toLower(cl.text) CONTAINS toLower('keyword'). Never use exact equality for text.
+    - IMPORTANT SYNTAX: If querying multiple relationships, use the `|` OR operator without repeating the colon. Use `[:REFERENCES|MODIFIES]` NOT `[:REFERENCES|:MODIFIES]`.
     """
     
     try:
