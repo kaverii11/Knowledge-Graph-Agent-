@@ -78,7 +78,8 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     Instructions:
     - Only return the raw Cypher query string.
     - Do not include markdown formatting like ```cypher.
-    - Use case-insensitive fuzzy matching when querying text. e.g. MUST use toLower(cl.text) CONTAINS toLower('keyword'). Never use exact equality for text.
+    - For fuzzy text/name matching, splitting into multiple CONTAINS is MUST: `toLower(e.name) CONTAINS 'word1' AND toLower(e.name) CONTAINS 'word2'`. NEVER use exact equality or a single long substring for multi-word entities.
+    - Never assume the exact `id` of a Circular. Always fuzzy match it: `toLower(c.id) CONTAINS 'custodian' AND toLower(c.id) CONTAINS 'guidelines'`.
     - IMPORTANT SYNTAX: If querying multiple relationships, use the `|` OR operator without repeating the colon. Use `[:REFERENCES|MODIFIES]` NOT `[:REFERENCES|:MODIFIES]`.
     - CRITICAL GRAPH PATH: When asked about what a circular "references", "modifies", or a specific named topic (like 'custodian guidelines'), you MUST query the Entity node `(e:Entity)` using `toLower(e.name) CONTAINS toLower('keyword')`. Do NOT just full-text search the `cl:Clause` text.
     """
