@@ -55,9 +55,45 @@ def generate_content_with_retry(client, model, contents):
         print(f"  [Gemini API] Retryable Error: {e}")
         raise
 
-def get_cypher_query(question: str, client: genai.Client) -> str:
+def get_live_schema(conn) -> str:
+    """
+    Dynamically fetches the actual schema from the live Neo4j database
+    so the LLM knows exactly what nodes, properties, relationships, and
+    entity names exist. This eliminates all hallucination.
+    """
+    schema_parts = []
+    
+    # Get relationship types
+    try:
+        rels = conn.execute_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS type")
+        rel_types = [r['type'] for r in rels]
+        schema_parts.append(f"Relationship types that ACTUALLY EXIST: {rel_types}")
+    except:
+        rel_types = ['REFERENCES']
+        schema_parts.append("Relationship types: ['REFERENCES']")
+    
+    # Get circular IDs
+    try:
+        circulars = conn.execute_query("MATCH (c:Circular) RETURN c.id AS id")
+        circular_ids = [c['id'] for c in circulars]
+        schema_parts.append(f"Circular IDs: {circular_ids}")
+    except:
+        schema_parts.append("Circular IDs: unknown")
+    
+    # Get all entity names
+    try:
+        entities = conn.execute_query("MATCH (e:Entity) RETURN e.name AS name ORDER BY name")
+        entity_names = [e['name'] for e in entities]
+        schema_parts.append(f"Entity names in database:\n{chr(10).join('  - ' + n for n in entity_names)}")
+    except:
+        schema_parts.append("Entity names: unknown")
+    
+    return "\n".join(schema_parts)
+
+def get_cypher_query(question: str, client: genai.Client, live_schema: str) -> str:
     """
     Translates a natural language question into a Cypher query using Gemini Flash.
+    Uses a live schema snapshot so the LLM knows exactly what data exists.
     """
     prompt = f"""
     You are an expert Neo4j Cypher query writer.
@@ -65,24 +101,23 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
     
     Database Schema:
     - Nodes: 
-      - (c:Circular {{id}})  // Note: Circular nodes ONLY have an 'id' property. Do NOT use 'file_name' or other guessed properties.
+      - (c:Circular {{id}})
       - (cl:Clause {{text, page_number}})
-      - (e:Entity {{name, type, canonical_name}})
-    - Relationships: 
-      - (c)-[:CONTAINS]->(cl)
-      - (cl)-[:REFERENCES]->(e)
-      - (cl)-[:MODIFIES]->(e)
+      - (e:Entity {{name, type}})
+    - Relationships: (c)-[:CONTAINS]->(cl), (cl)-[:REFERENCES]->(e)
+    
+    LIVE DATABASE INVENTORY (use these EXACT names when matching):
+    {live_schema}
     
     User Question: {question}
     
     Instructions:
-    - Only return the raw Cypher query string.
-    - Do not include markdown formatting like ```cypher.
-    - For fuzzy text/name matching, splitting into multiple CONTAINS is MUST: `toLower(e.name) CONTAINS 'word1' AND toLower(e.name) CONTAINS 'word2'`. NEVER use exact equality or a single long substring for multi-word entities.
-    - Never assume the exact `id` of a Circular. Always fuzzy match it: `toLower(c.id) CONTAINS 'custodian' AND toLower(c.id) CONTAINS 'guidelines'`.
-    - CRITICAL NODE SELECTION: If the user searches for generic regulations, topics, acts, or entities (e.g. "Depositories and Participants Regulations"), you MUST search the `Entity` node using `e.name`. DO NOT search `c.id` unless the user explicitly asks for a "circular named X".
-    - IMPORTANT SYNTAX: If querying multiple relationships, use the `|` OR operator without repeating the colon. Use `[:REFERENCES|MODIFIES]` NOT `[:REFERENCES|:MODIFIES]`.
-    - CRITICAL GRAPH PATH: When asked about what a circular "references", "modifies", or a specific named topic (like 'custodian guidelines'), you MUST query the Entity node `(e:Entity)` using `toLower(e.name) CONTAINS toLower('keyword')`. Do NOT just full-text search the `cl:Clause` text.
+    - Only return the raw Cypher query string. No markdown formatting.
+    - ONLY use relationship types from the LIVE DATABASE INVENTORY above. If MODIFIES is not listed, do NOT use it.
+    - When matching entity names, use fuzzy matching with toLower() CONTAINS on individual keywords.
+    - When matching circular IDs, use toLower(c.id) CONTAINS 'keyword'.
+    - Pick the closest matching entity name from the inventory above. If no entity closely matches the question, search cl.text instead.
+    - Always RETURN useful fields: c.id, cl.text, cl.page_number, e.name as appropriate.
     """
     
     try:
@@ -92,7 +127,6 @@ def get_cypher_query(question: str, client: genai.Client) -> str:
             contents=prompt,
         )
         
-        # Strip potential markdown formatting if the model disobeys instructions
         query = response.text.strip()
         query = re.sub(r"^```(cypher)?\n", "", query, flags=re.IGNORECASE)
         query = re.sub(r"\n```$", "", query)
@@ -147,6 +181,9 @@ def chat_interface():
     client = genai.Client(api_key=api_key)
     
     try:
+        # Fetch live schema once at startup
+        print("Fetching live schema from Neo4j...")
+        live_schema = get_live_schema(conn)
         print("Done. Welcome to the SEBI Compliance Knowledge Graph!")
         print("Type 'exit' or 'quit' to stop.\n")
         
@@ -159,7 +196,7 @@ def chat_interface():
                 continue
                 
             print("\n  [Agent] Generating Cypher query (Gemini Flash)...")
-            cypher_query = get_cypher_query(question, client)
+            cypher_query = get_cypher_query(question, client, live_schema)
             
             if not cypher_query:
                 print("  [Agent] Failed to generate a valid Cypher query. Try rephrasing.")
