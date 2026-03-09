@@ -27,10 +27,6 @@ def process_pdf(file_path: str, output_path: str):
     
     print(f"DEBUG: Successfully extracted {len(chunks)} structural chunks.")
     
-    # TRUNCATE FOR FAST LOCAL TESTING
-    chunks = chunks[:5]
-    print(f"DEBUG: Truncating document to the first {len(chunks)} chunks for fast local testing.")
-    
     if len(chunks) == 0:
         print("DEBUG: Halting. The parser couldn't read the PDF structure.")
         return
