@@ -1,12 +1,9 @@
 import os
 import re
 from dotenv import load_dotenv
-from google import genai
-from google.genai import types
 from neo4j import GraphDatabase
-from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+from openai import OpenAI
 
-# Using the same Neo4jConnection we built for graph_db.py
 class Neo4jConnection:
     def __init__(self, uri, user, pwd):
         self.__uri = uri
@@ -31,8 +28,6 @@ class Neo4jConnection:
                 result = session.run(query, parameters)
                 return [record.data() for record in result]
         except Exception as e:
-            # If the connection was reset by peer (e.g. timeout), try to reconnect once
-            print(f"  [Neo4j Driver] Connection dropped ({e}). Attempting to reconnect...")
             self.close()
             self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password), max_connection_lifetime=200)
             self.__driver.verify_connectivity()
@@ -40,127 +35,77 @@ class Neo4jConnection:
                 result = session.run(query, parameters)
                 return [record.data() for record in result]
 
-@retry(
-    stop=stop_after_attempt(8),
-    wait=wait_exponential(multiplier=2, min=15, max=70),
-    retry=retry_if_exception_type(Exception)
-)
-def generate_content_with_retry(client, model, contents):
-    try:
-        return client.models.generate_content(
-            model=model,
-            contents=contents,
-        )
-    except Exception as e:
-        print(f"  [Gemini API] Retryable Error: {e}")
-        raise
+def llm_call(client: OpenAI, prompt: str) -> str:
+    """Single unified LLM call using OpenAI."""
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{"role": "user", "content": prompt}],
+        temperature=0.1,
+    )
+    return response.choices[0].message.content.strip()
 
 def get_live_schema(conn) -> str:
-    """
-    Dynamically fetches the actual schema from the live Neo4j database
-    so the LLM knows exactly what nodes, properties, relationships, and
-    entity names exist. This eliminates all hallucination.
-    """
     schema_parts = []
-    
-    # Get relationship types
     try:
         rels = conn.execute_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS type")
-        rel_types = [r['type'] for r in rels]
-        schema_parts.append(f"Relationship types that ACTUALLY EXIST: {rel_types}")
+        schema_parts.append(f"Relationship types: {[r['type'] for r in rels]}")
     except:
-        rel_types = ['REFERENCES']
         schema_parts.append("Relationship types: ['REFERENCES']")
-    
-    # Get circular IDs
     try:
         circulars = conn.execute_query("MATCH (c:Circular) RETURN c.id AS id")
-        circular_ids = [c['id'] for c in circulars]
-        schema_parts.append(f"Circular IDs: {circular_ids}")
+        schema_parts.append(f"Circular IDs: {[c['id'] for c in circulars]}")
     except:
-        schema_parts.append("Circular IDs: unknown")
-    
-    # Get all entity names
+        pass
     try:
         entities = conn.execute_query("MATCH (e:Entity) RETURN e.name AS name ORDER BY name")
-        entity_names = [e['name'] for e in entities]
-        schema_parts.append(f"Entity names in database:\n{chr(10).join('  - ' + n for n in entity_names)}")
+        schema_parts.append(f"Entity names:\n{chr(10).join('  - ' + e['name'] for e in entities)}")
     except:
-        schema_parts.append("Entity names: unknown")
-    
+        pass
     return "\n".join(schema_parts)
 
-def get_cypher_query(question: str, client: genai.Client, live_schema: str) -> str:
-    """
-    Translates a natural language question into a Cypher query using Gemini Flash.
-    Uses a live schema snapshot so the LLM knows exactly what data exists.
-    """
-    prompt = f"""
-    You are an expert Neo4j Cypher query writer.
-    Translate the user's natural language question into a valid Cypher query.
-    
-    Database Schema:
-    - Nodes: 
-      - (c:Circular {{id}})
-      - (cl:Clause {{text, page_number}})
-      - (e:Entity {{name, type}})
-    - Relationships: (c)-[:CONTAINS]->(cl), (cl)-[:REFERENCES]->(e)
-    
-    LIVE DATABASE INVENTORY (use these EXACT names when matching):
-    {live_schema}
-    
-    User Question: {question}
-    
-    Instructions:
-    - Only return the raw Cypher query string. No markdown formatting.
-    - ONLY use relationship types from the LIVE DATABASE INVENTORY above. If MODIFIES is not listed, do NOT use it.
-    - When matching entity names, use fuzzy matching with toLower() CONTAINS on individual keywords.
-    - When matching circular IDs, use toLower(c.id) CONTAINS 'keyword'.
-    - Pick the closest matching entity name from the inventory above. If no entity closely matches the question, search cl.text instead.
-    - Always RETURN useful fields: c.id, cl.text, cl.page_number, e.name as appropriate.
-    """
-    
+def get_cypher_query(question: str, client: OpenAI, live_schema: str) -> str:
+    prompt = f"""You are an expert Neo4j Cypher query writer.
+Translate the user's natural language question into a valid Cypher query.
+
+Database Schema:
+- (c:Circular {{id}})
+- (cl:Clause {{text, page_number}})
+- (e:Entity {{name, type}})
+- Relationships: (c)-[:CONTAINS]->(cl), (cl)-[:REFERENCES]->(e)
+
+LIVE DATABASE INVENTORY (use these EXACT names when matching):
+{live_schema}
+
+User Question: {question}
+
+Instructions:
+- Return ONLY the raw Cypher query string. No markdown, no explanation.
+- ONLY use relationship types from the inventory above.
+- Use fuzzy matching: toLower(e.name) CONTAINS 'keyword'. Split multi-word searches into multiple AND conditions.
+- Pick the closest matching entity from the inventory. If nothing matches, search cl.text instead.
+- Always RETURN useful fields: c.id, cl.text, cl.page_number, e.name as appropriate."""
+
     try:
-        response = generate_content_with_retry(
-            client=client,
-            model='gemini-2.5-flash-lite',
-            contents=prompt,
-        )
-        
-        query = response.text.strip()
-        query = re.sub(r"^```(cypher)?\n", "", query, flags=re.IGNORECASE)
-        query = re.sub(r"\n```$", "", query)
-        
-        return query.strip()
+        result = llm_call(client, prompt)
+        result = re.sub(r"^```(cypher)?\n", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\n```$", "", result)
+        return result.strip()
     except Exception as e:
-        print(f"Error generating Cypher: {e}")
         return ""
 
-def synthesize_answer(question: str, results: list, client: genai.Client) -> str:
-    """
-    Takes the raw Neo4j results and uses Gemini Flash to write a clean summary for a compliance officer.
-    """
+def synthesize_answer(question: str, results: list, client: OpenAI) -> str:
     if not results:
-        return "The database query yielded no results matching your question."
-        
-    prompt = f"""
-    You are an AI assistant for a major Indian Bank's Compliance Team.
-    Based on the following JSON results from our Knowledge Graph, answer the user's question.
-    Give a professional, concise, and highly readable summary.
-    
-    User Question: {question}
-    
-    Neo4j Results:
-    {results}
-    """
-    
+        return "No results found for your question."
+    prompt = f"""You are an AI assistant for a major Indian Bank's Compliance Team.
+Based on the following JSON results from our Knowledge Graph, answer the user's question.
+Give a professional, concise, and highly readable summary.
+
+User Question: {question}
+
+Neo4j Results:
+{results}"""
     try:
-        response = generate_content_with_retry(
-            client=client,
-            model='gemini-2.5-flash-lite',
-            contents=prompt,
-        )
-        return response.text.strip()
+        return llm_call(client, prompt)
     except Exception as e:
         return f"Error synthesizing answer: {e}"
 
@@ -171,16 +116,15 @@ def chat_interface():
     NEO4J_USER = os.getenv("NEO4J_USERNAME", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
     
-    api_key = os.getenv("GEMINI_API_KEY")
-    if not api_key:
-        print("Error: GEMINI_API_KEY not found in .env file.")
+    openai_key = os.getenv("OPEN_AI")
+    if not openai_key:
+        print("Error: OPEN_AI key not found in .env file.")
         return
         
     conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
-    client = genai.Client(api_key=api_key)
+    client = OpenAI(api_key=openai_key)
     
     try:
-        # Fetch live schema once at startup
         live_schema = get_live_schema(conn)
         print("Ready! Welcome to the SEBI Compliance Knowledge Graph.")
         print("Type 'exit' or 'quit' to stop.\n")
@@ -192,8 +136,7 @@ def chat_interface():
                 break
             if not question.strip():
                 continue
-                
-            print("\n  [Agent] Generating Cypher query (Gemini Flash)...")
+            
             cypher_query = get_cypher_query(question, client, live_schema)
             
             if not cypher_query:
