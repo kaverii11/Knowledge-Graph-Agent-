@@ -1,11 +1,11 @@
 import re
 import os
 import json
+import base64
 from typing import TypedDict, List, Dict, Any, Literal, Optional
 from langgraph.graph import StateGraph, END
 from schemas.models import ExtractedReference, ExtractionResult, ExtractionMethod, ReferenceType
-from google import genai
-from google.genai import types
+from openai import OpenAI
 from pydantic import ValidationError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
@@ -49,25 +49,44 @@ def extract_regex(state: GraphState) -> GraphState:
             
     return {"references": references}
 
-def get_llm_client():
-    # Relies on GEMINI_API_KEY environment variable
-    return genai.Client()
+def get_llm_client() -> OpenAI:
+    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @retry(
     stop=stop_after_attempt(8),
     wait=wait_exponential(multiplier=2, min=15, max=70),
     retry=retry_if_exception_type(Exception)
 )
-def generate_content_with_retry(client, model, contents, config):
+def generate_content_with_retry(client: OpenAI, model: str, messages: list, response_format):
     try:
-        return client.models.generate_content(
+        completion = client.beta.chat.completions.parse(
             model=model,
-            contents=contents,
-            config=config
+            messages=messages,
+            response_format=response_format,
+            temperature=0.1,
         )
+        return completion.choices[0].message.parsed
     except Exception as e:
-        print(f"DEBUG: Gemini API attempt failed. Error: {e}")
+        print(f"DEBUG: OpenAI API attempt failed. Error: {e}")
         raise
+
+def _build_messages(prompt: str, image_bytes: Optional[bytes]) -> list:
+    """Build OpenAI message list, optionally including a base64-encoded image."""
+    if image_bytes:
+        b64_image = base64.b64encode(image_bytes).decode("utf-8")
+        return [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": f"data:image/png;base64,{b64_image}"},
+                    },
+                ],
+            }
+        ]
+    return [{"role": "user", "content": prompt}]
 
 def extract_fast_llm(state: GraphState) -> GraphState:
     client = get_llm_client()
@@ -89,30 +108,22 @@ def extract_fast_llm(state: GraphState) -> GraphState:
     else:
         prompt += "\n\nPlease extract references from the attached document image."
     
-    contents = [prompt]
-    if image_bytes:
-        contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
+    messages = _build_messages(prompt, image_bytes)
+    # Use gpt-4o for vision (image) chunks, gpt-4o-mini for text-only
+    model = "gpt-4o" if image_bytes else "gpt-4o-mini"
     
     try:
-        response = generate_content_with_retry(
+        parsed_result = generate_content_with_retry(
             client=client,
-            model='gemini-2.5-flash-lite', # Pivot to 2.5-flash-lite to bypass rigorous free-tier quotas
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=ExtractionResult,
-                temperature=0.1,
-            ),
+            model=model,
+            messages=messages,
+            response_format=ExtractionResult,
         )
         
-        if response.text:
-            result_dict = json.loads(response.text)
-            parsed_result = ExtractionResult(**result_dict)
-            
-            # Append fast LLM results, tagging them properly
+        if parsed_result:
             for ref in parsed_result.references:
                 ref.extraction_method = ExtractionMethod.FAST_LLM
-                ref.page_number = state["page_number"] # Ensure page number is correct
+                ref.page_number = state["page_number"]
                 references.append(ref)
                 
     except Exception as e:
@@ -136,7 +147,7 @@ def validate_extraction(state: GraphState) -> GraphState:
     return {"validation_status": "valid"}
 
 def refine_pro(state: GraphState) -> GraphState:
-    # If the fast LLM failed or had low confidence, try with Pro model
+    """If the fast LLM failed or had low confidence, retry with gpt-4o (pro fallback)."""
     client = get_llm_client()
     text = state["chunk_text"]
     context = state["context_text"]
@@ -154,28 +165,18 @@ def refine_pro(state: GraphState) -> GraphState:
     else:
         prompt += "\n\nPlease carefully extract references from the attached document image."
     
-    contents = [prompt]
-    if image_bytes:
-        contents.append(types.Part.from_bytes(data=image_bytes, mime_type="image/png"))
+    messages = _build_messages(prompt, image_bytes)
     
     try:
-        response = generate_content_with_retry(
+        parsed_result = generate_content_with_retry(
             client=client,
-            model='gemini-flash-latest', # Pivot to flash-latest for fallback
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=ExtractionResult,
-                temperature=0.1,
-            ),
+            model="gpt-4o",  # Always use full gpt-4o as the pro fallback
+            messages=messages,
+            response_format=ExtractionResult,
         )
         
-        if response.text:
-            result_dict = json.loads(response.text)
-            parsed_result = ExtractionResult(**result_dict)
-            
-            # We completely replace the non-regex references with Pro results
-            # Filter out FAST_LLM references, keep REGEX ones
+        if parsed_result:
+            # We completely replace the non-regex references with pro results
             new_refs = [r for r in state.get("references", []) if r.extraction_method == ExtractionMethod.REGEX]
             
             for ref in parsed_result.references:
@@ -186,7 +187,6 @@ def refine_pro(state: GraphState) -> GraphState:
             return {"references": new_refs, "validation_status": "valid", "errors": []}
             
     except Exception as e:
-        # If it still fails, just return what we have and keep the error
         errors = state.get("errors", [])
         errors.append(f"Pro Fallback Error: {str(e)}")
         return {"errors": errors}

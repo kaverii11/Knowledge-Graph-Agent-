@@ -4,7 +4,7 @@ import json
 import numpy as np
 from dotenv import load_dotenv
 from neo4j import GraphDatabase, exceptions
-from google import genai
+from openai import OpenAI
 
 class Neo4jConnection:
     def __init__(self, uri, user, pwd):
@@ -48,11 +48,11 @@ def is_strict_sebi_format(title: str) -> bool:
 def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
-def resolve_entities(extracted_references: list, client: genai.Client, threshold: float = 0.88) -> list:
+def resolve_entities(extracted_references: list, client: OpenAI, threshold: float = 0.88) -> list:
     """
-    Takes a list of reference dictionaries, separates strict SEBI circular IDs, 
-    and clusters the remaining natural language entities using Gemini text embeddings 
-    and cosine similarity.
+    Takes a list of reference dictionaries, separates strict SEBI circular IDs,
+    and clusters the remaining natural language entities using OpenAI text embeddings
+    (text-embedding-3-small) and cosine similarity.
     """
     unique_titles = set()
     for ref in extracted_references:
@@ -66,7 +66,7 @@ def resolve_entities(extracted_references: list, client: genai.Client, threshold
     canonical_mapping = {}
     natural_titles = []
     
-    # 1. Filter out strict SEBI format
+    # 1. Filter out strict SEBI format — these are already canonical
     for title in unique_titles:
         if is_strict_sebi_format(title):
             canonical_mapping[title] = title
@@ -76,14 +76,14 @@ def resolve_entities(extracted_references: list, client: genai.Client, threshold
     if not natural_titles:
         return extracted_references
 
-    # 2. Get embeddings for all natural language titles
+    # 2. Get embeddings for all natural language titles using OpenAI
     print(f"Generating embeddings for {len(natural_titles)} entities...")
     try:
-        response = client.models.embed_content(
-            model='gemini-embedding-001',
-            contents=natural_titles
+        response = client.embeddings.create(
+            input=natural_titles,
+            model="text-embedding-3-small"
         )
-        embeddings = [np.array(e.values) for e in response.embeddings]
+        embeddings = [np.array(item.embedding) for item in response.data]
     except Exception as e:
         print(f"Failed to generate embeddings: {e}")
         return extracted_references
@@ -110,8 +110,7 @@ def resolve_entities(extracted_references: list, client: genai.Client, threshold
                 cluster.append(other_title)
                 resolved.add(other_title)
                 
-        # Determine the canonical name for this cluster (typically the longest/most descriptive)
-        # Using string length as a simple proxy for descriptiveness
+        # Determine the canonical name for this cluster (the longest/most descriptive)
         canonical_name = max(cluster, key=len)
         
         # Map all variants in the cluster to the canonical name
@@ -128,7 +127,7 @@ def resolve_entities(extracted_references: list, client: genai.Client, threshold
             
     return extracted_references
 
-def ingest_data(conn: Neo4jConnection, client: genai.Client, json_file: str, circular_id: str):
+def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_id: str):
     """
     Reads the extracted references and populates the Neo4j Graph.
     """
@@ -186,8 +185,7 @@ def ingest_data(conn: Neo4jConnection, client: genai.Client, json_file: str, cir
         """
         conn.execute_query(circ_clause_query, {"circular_id": circular_id, "clause_id": clause_id})
         
-        # 4. Link Clause to Entity based on modifies verb or generally references
-        # Very simple heuristic: if 'amend', 'modify', 'substitute' in context snippet, it Modifies.
+        # 4. Link Clause to Entity — use MODIFIES if the context contains amendment verbs
         modifying_verbs = ['amend', 'modify', 'substitute', 'insert', 'repeal', 'replace']
         is_modifying = any(verb in context.lower() for verb in modifying_verbs)
         
@@ -214,12 +212,14 @@ if __name__ == "__main__":
     NEO4J_USER = os.getenv("NEO4J_USERNAME", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
     
-    api_key = os.getenv("GEMINI_API_KEY")
-    client = genai.Client(api_key=api_key)
+    openai_key = os.getenv("OPENAI_API_KEY")
+    if not openai_key:
+        print("Error: OPENAI_API_KEY not found in .env file.")
+        exit(1)
     
+    client = OpenAI(api_key=openai_key)
     conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
     
-    # We use a hardcoded circular ID for the dummy JSON we tested earlier
     ingest_data(conn, client, "sebi_references.json", "sample_sebi_circular")
     
     conn.close()
