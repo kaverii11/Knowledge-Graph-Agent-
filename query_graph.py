@@ -176,15 +176,13 @@ def chat_interface():
         print("Error: GEMINI_API_KEY not found in .env file.")
         return
         
-    print("\nConnecting to Neo4j database...")
     conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
     client = genai.Client(api_key=api_key)
     
     try:
         # Fetch live schema once at startup
-        print("Fetching live schema from Neo4j...")
         live_schema = get_live_schema(conn)
-        print("Done. Welcome to the SEBI Compliance Knowledge Graph!")
+        print("Ready! Welcome to the SEBI Compliance Knowledge Graph.")
         print("Type 'exit' or 'quit' to stop.\n")
         
         while True:
@@ -199,23 +197,15 @@ def chat_interface():
             cypher_query = get_cypher_query(question, client, live_schema)
             
             if not cypher_query:
-                print("  [Agent] Failed to generate a valid Cypher query. Try rephrasing.")
+                print("\n  Sorry, I couldn't understand that question. Try rephrasing.\n")
                 continue
-                
-            print(f"  [Agent] Executing: {cypher_query}")
             
             try:
                 raw_results = conn.execute_query(cypher_query)
-                print(f"  [Agent] Fetched {len(raw_results)} records from Neo4j.")
-                
-                print("  [Agent] Synthesizing final answer (Gemini Flash)...")
                 final_answer = synthesize_answer(question, raw_results, client)
-                
-                print("\n================ ANSWER ================\n")
-                print(final_answer)
-                print("\n========================================\n")
+                print(f"\n{final_answer}\n")
             except Exception as e:
-                print(f"  [Agent] Neo4j Execution Error: {e}")
+                print(f"\n  Sorry, there was a database error. Please try again.\n")
                 
     finally:
         conn.close()
