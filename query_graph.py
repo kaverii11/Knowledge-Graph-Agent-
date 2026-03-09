@@ -91,6 +91,7 @@ Instructions:
         result = re.sub(r"\n```$", "", result)
         return result.strip()
     except Exception as e:
+        print(f"\n  [DEBUG] OpenAI Cypher generation failed: {e}")
         return ""
 
 def synthesize_answer(question: str, results: list, client: OpenAI) -> str:

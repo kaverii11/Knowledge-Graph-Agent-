@@ -1,0 +1,11 @@
+# Environments
+venv/
+.env
+
+# Cache
+__pycache__/
+*.pyc
+
+# Data
+*.pdf
+*.json

@@ -1,7 +1,5 @@
 import fitz  # PyMuPDF
 import re
-import pytesseract
-from pdf2image import convert_from_path
 from typing import Iterator, Dict, Any, List
 
 def is_structural_marker(text: str) -> bool:
@@ -50,32 +48,17 @@ def parse_pdf_structural(file_path: str, context_window_size: int = 2) -> Iterat
             needs_ocr = True
 
         if needs_ocr:
-            # OCR Path (String-based parsing)
-            images = convert_from_path(file_path)
-            for page_num, img in enumerate(images):
-                page_text = pytesseract.image_to_string(img)
-                lines = page_text.split('\n')
+            # Native Multimodal Path (Yielding page images)
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                pix = page.get_pixmap(dpi=150) # Render page as high-res image
+                img_bytes = pix.tobytes("png")
                 
-                for line in lines:
-                    text = line.strip()
-                    if not text:
-                        continue
-                        
-                    # If we find a structural marker, we flush the current chunk
-                    if is_structural_marker(text):
-                        if current_chunk_text.strip():
-                            chunks.append({
-                                "chunk_text": current_chunk_text.strip(),
-                                "page_number": current_chunk_start_page
-                            })
-                        # Start a new chunk
-                        current_chunk_text = text + "\n"
-                        current_chunk_start_page = page_num + 1 # 1-indexed
-                    else:
-                        # Append to current chunk
-                        if not current_chunk_text:
-                            current_chunk_start_page = page_num + 1
-                        current_chunk_text += text + "\n"
+                chunks.append({
+                    "chunk_text": "",
+                    "chunk_image_bytes": img_bytes,
+                    "page_number": page_num + 1
+                })
         else:
             # Native PyMuPDF Path (Block-based parsing)
             for page_num in range(len(doc)):
@@ -121,11 +104,13 @@ def parse_pdf_structural(file_path: str, context_window_size: int = 2) -> Iterat
         
         yield {
             "chunk_text": chunk["chunk_text"],
+            "chunk_image_bytes": chunk.get("chunk_image_bytes"),
             "context_text": context_text,
             "page_number": chunk["page_number"]
         }
         
-        # Update context window
-        context_chunks_text.append(chunk["chunk_text"])
-        if len(context_chunks_text) > context_window_size:
-            context_chunks_text.pop(0)
+        # Update context window only if there is text
+        if chunk["chunk_text"]:
+            context_chunks_text.append(chunk["chunk_text"])
+            if len(context_chunks_text) > context_window_size:
+                context_chunks_text.pop(0)
