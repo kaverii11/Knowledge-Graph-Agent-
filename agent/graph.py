@@ -1,13 +1,16 @@
 import re
 import os
-import json
 import base64
-from typing import TypedDict, List, Dict, Any, Literal, Optional
+from typing import TypedDict, List, Literal, Optional
 from langgraph.graph import StateGraph, END
-from schemas.models import ExtractedReference, ExtractionResult, ExtractionMethod, ReferenceType
-from openai import OpenAI
-from pydantic import ValidationError
+from schemas.models import ExtractedReference, LLMExtractionResult, ExtractionMethod, ReferenceType
+from openai import OpenAI, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
+
+# Below this, an extraction is sent to the stronger model for a second pass
+CONFIDENCE_THRESHOLD = 0.7
+FAST_MODEL = "gpt-4o-mini"
+PRO_MODEL = "gpt-4o"
 
 class GraphState(TypedDict):
     chunk_text: str
@@ -25,8 +28,9 @@ def extract_regex(state: GraphState) -> GraphState:
     if not text:
         return {"references": references}
         
-    # Simple regex for SEBI circular formats like: SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/71
-    sebi_pattern = r"(SEBI/[A-Z0-9/\-]+(?:CIR|Master)[/\w\-]+)"
+    # SEBI circular IDs like SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/71 or SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/156.
+    # Department codes mix case ("PoD") and underscores, so the prefix accepts [\w-], not just capitals.
+    sebi_pattern = r"(SEBI/[\w/\-]*?(?:CIR|Master)[/\w\-]*\w)"
     matches = re.finditer(sebi_pattern, text)
     
     for match in matches:
@@ -52,23 +56,29 @@ def extract_regex(state: GraphState) -> GraphState:
 def get_llm_client() -> OpenAI:
     return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# Only transient errors (rate limits, timeouts, 5xx) are worth retrying; bad requests or auth errors fail fast
 @retry(
-    stop=stop_after_attempt(8),
-    wait=wait_exponential(multiplier=2, min=15, max=70),
-    retry=retry_if_exception_type(Exception)
+    stop=stop_after_attempt(6),
+    wait=wait_exponential(multiplier=2, min=5, max=60),
+    retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)),
+    reraise=True,
 )
 def generate_content_with_retry(client: OpenAI, model: str, messages: list, response_format):
-    try:
-        completion = client.beta.chat.completions.parse(
-            model=model,
-            messages=messages,
-            response_format=response_format,
-            temperature=0.1,
-        )
-        return completion.choices[0].message.parsed
-    except Exception as e:
-        print(f"DEBUG: OpenAI API attempt failed. Error: {e}")
-        raise
+    completion = client.beta.chat.completions.parse(
+        model=model,
+        messages=messages,
+        response_format=response_format,
+        temperature=0.1,
+    )
+    return completion.choices[0].message.parsed
+
+def _to_references(parsed: Optional[LLMExtractionResult], page_number: int, method: ExtractionMethod) -> List[ExtractedReference]:
+    if not parsed:
+        return []
+    return [
+        ExtractedReference(**ref.model_dump(), page_number=page_number, extraction_method=method)
+        for ref in parsed.references
+    ]
 
 def _build_messages(prompt: str, image_bytes: Optional[bytes]) -> list:
     """Build OpenAI message list, optionally including a base64-encoded image."""
@@ -93,7 +103,7 @@ def extract_fast_llm(state: GraphState) -> GraphState:
     text = state["chunk_text"]
     context = state["context_text"]
     image_bytes = state.get("chunk_image_bytes")
-    references = state.get("references", [])
+    references = list(state.get("references", []))
     
     prompt = f"""
     You are a legal AI assistant. Extract all mentions of other legal documents, circulars, acts, or regulations from the document.
@@ -109,35 +119,29 @@ def extract_fast_llm(state: GraphState) -> GraphState:
         prompt += "\n\nPlease extract references from the attached document image."
     
     messages = _build_messages(prompt, image_bytes)
-    # Use gpt-4o for vision (image) chunks, gpt-4o-mini for text-only
-    model = "gpt-4o" if image_bytes else "gpt-4o-mini"
+    # Scanned pages are images, which need the vision-capable model
+    model = PRO_MODEL if image_bytes else FAST_MODEL
     
     try:
         parsed_result = generate_content_with_retry(
             client=client,
             model=model,
             messages=messages,
-            response_format=ExtractionResult,
+            response_format=LLMExtractionResult,
         )
-        
-        if parsed_result:
-            for ref in parsed_result.references:
-                ref.extraction_method = ExtractionMethod.FAST_LLM
-                ref.page_number = state["page_number"]
-                references.append(ref)
-                
+        references.extend(_to_references(parsed_result, state["page_number"], ExtractionMethod.FAST_LLM))
     except Exception as e:
-        return {"errors": [f"Fast LLM Error: {str(e)}"]}
+        return {"errors": state.get("errors", []) + [f"Fast LLM Error: {str(e)}"]}
         
     return {"references": references}
 
 def validate_extraction(state: GraphState) -> GraphState:
     references = state.get("references", [])
-    errors = state.get("errors", [])
+    errors = list(state.get("errors", []))
     
     low_confidence_count = 0
     for ref in references:
-        if ref.confidence_score < 0.7:
+        if ref.confidence_score < CONFIDENCE_THRESHOLD:
             low_confidence_count += 1
             errors.append(f"Low confidence ({ref.confidence_score}) for reference: {ref.title}")
             
@@ -147,7 +151,7 @@ def validate_extraction(state: GraphState) -> GraphState:
     return {"validation_status": "valid"}
 
 def refine_pro(state: GraphState) -> GraphState:
-    """If the fast LLM failed or had low confidence, retry with gpt-4o (pro fallback)."""
+    """If the fast LLM failed or had low confidence, retry with the stronger model (pro fallback)."""
     client = get_llm_client()
     text = state["chunk_text"]
     context = state["context_text"]
@@ -170,28 +174,21 @@ def refine_pro(state: GraphState) -> GraphState:
     try:
         parsed_result = generate_content_with_retry(
             client=client,
-            model="gpt-4o",  # Always use full gpt-4o as the pro fallback
+            model=PRO_MODEL,
             messages=messages,
-            response_format=ExtractionResult,
+            response_format=LLMExtractionResult,
         )
-        
-        if parsed_result:
-            # We completely replace the non-regex references with pro results
-            new_refs = [r for r in state.get("references", []) if r.extraction_method == ExtractionMethod.REGEX]
-            
-            for ref in parsed_result.references:
-                ref.extraction_method = ExtractionMethod.PRO_FALLBACK
-                ref.page_number = state["page_number"]
-                new_refs.append(ref)
-                
-            return {"references": new_refs, "validation_status": "valid", "errors": []}
-            
     except Exception as e:
-        errors = state.get("errors", [])
-        errors.append(f"Pro Fallback Error: {str(e)}")
-        return {"errors": errors}
-        
-    return {}
+        return {"errors": state.get("errors", []) + [f"Pro Fallback Error: {str(e)}"]}
+
+    if not parsed_result:
+        # Model refused or returned nothing: keep the fast-model results rather than dropping them
+        return {"errors": state.get("errors", []) + ["Pro Fallback returned no result"]}
+
+    # Keep the regex hits, replace everything the fast model produced with the pro results
+    new_refs = [r for r in state.get("references", []) if r.extraction_method == ExtractionMethod.REGEX]
+    new_refs.extend(_to_references(parsed_result, state["page_number"], ExtractionMethod.PRO_FALLBACK))
+    return {"references": new_refs, "validation_status": "valid", "errors": []}
 
 def route_after_validation(state: GraphState) -> Literal["refine_pro", "__end__"]:
     if state.get("validation_status") == "invalid":

@@ -9,16 +9,16 @@ def is_structural_marker(text: str) -> bool:
     """
     text = text.strip()
     
-    # Matches "1.", "1.1", "1.1.1", "1.1.1.", etc.
-    if re.match(r"^\d+(\.\d+)*\.?\s", text):
+    # Matches "1.", "1.1", "1.1.1", "1.1.1.", etc. A dot is required, so lines like "2023 ..." or "15 days" don't split chunks
+    if re.match(r"^\d{1,3}\.(\d+\.?)*\s", text):
         return True
         
     # Matches "Annexure A", "Annexure-I", "PART I", "Appendix A"
     if re.match(r"^(Annexure|Part|Appendix)\s+[A-Z0-9\-]+", text, re.IGNORECASE):
         return True
         
-    # Matches Roman numerals: "I.", "II.", "IV."
-    if re.match(r"^(X{0,3})(IX|IV|V?I{0,3})\.\s", text, re.IGNORECASE):
+    # Matches Roman numerals: "I.", "II.", "IV." (the lookahead stops an empty numeral from matching ". ")
+    if re.match(r"^(?=[IVX])(X{0,3})(IX|IV|V?I{0,3})\.\s", text, re.IGNORECASE):
         return True
         
     return False
@@ -38,17 +38,13 @@ def parse_pdf_structural(file_path: str, context_window_size: int = 2) -> Iterat
     chunks: List[Dict[str, Any]] = []
 
     with fitz.open(file_path) as doc:
-        # Optional OCR Flag
-        needs_ocr = False
-        
-        # Check overall text content of the document. If it's effectively 0, it's a scanned PDF.
+        # Check the first few pages for a text layer. If there's effectively none, it's a scanned PDF.
         full_doc_text = "".join([doc[i].get_text() for i in range(min(5, len(doc)))])
-        if len(full_doc_text.strip()) < 50:
-            print("  [Parser] No native text layer detected. Falling back to OCR...")
-            needs_ocr = True
+        is_scanned = len(full_doc_text.strip()) < 50
 
-        if needs_ocr:
-            # Native Multimodal Path (Yielding page images)
+        if is_scanned:
+            print("  [Parser] No native text layer detected. Sending page images to the vision model instead...")
+            # Multimodal path: each page becomes an image chunk for GPT-4o vision
             for page_num in range(len(doc)):
                 page = doc[page_num]
                 pix = page.get_pixmap(dpi=150) # Render page as high-res image

@@ -1,42 +1,13 @@
 import os
 import re
+import sys
 import json
+import hashlib
+import argparse
 import numpy as np
 from dotenv import load_dotenv
-from neo4j import GraphDatabase, exceptions
 from openai import OpenAI
-
-class Neo4jConnection:
-    def __init__(self, uri, user, pwd):
-        self.__uri = uri
-        self.__user = user
-        self.__password = pwd
-        self.__driver = None
-        try:
-            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password))
-            self.__driver.verify_connectivity()
-            print("Successfully connected to Neo4j!")
-        except exceptions.ServiceUnavailable as e:
-            print(f"Failed to connect to Neo4j: {e}")
-        except Exception as e:
-            print(f"An unexpected error occurred: {e}")
-        
-    def close(self):
-        if self.__driver is not None:
-            self.__driver.close()
-            print("Neo4j connection closed.")
-            
-    def execute_query(self, query, parameters=None):
-        if self.__driver is None:
-            print("Driver not initialized.")
-            return None
-        try:
-            with self.__driver.session() as session:
-                result = session.run(query, parameters)
-                return [record for record in result]
-        except Exception as e:
-            print(f"Query failed: {e}")
-            return None
+from utils.neo4j_client import Neo4jConnection
 
 def is_strict_sebi_format(title: str) -> bool:
     """
@@ -156,7 +127,10 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
         
         # We model a Clause as the specific occurrence of the text on a page
         # that belongs to the Circular.
-        clause_id = f"{circular_id}_page_{page_number}_{hash(context)}"
+        # Stable hash (Python's built-in hash() changes every run), so re-ingesting the same file
+        # MERGEs onto the existing clause instead of creating duplicates
+        context_hash = hashlib.sha1(context.encode("utf-8")).hexdigest()[:12]
+        clause_id = f"{circular_id}_page_{page_number}_{context_hash}"
         
         # 1. Create/Merge the distinct Entity being referenced
         entity_query = """
@@ -207,7 +181,12 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
 
 if __name__ == "__main__":
     load_dotenv()
-    
+
+    parser = argparse.ArgumentParser(description="Load extracted SEBI references into Neo4j")
+    parser.add_argument("json_file", nargs="?", default="sebi_references.json", help="Output of main.py")
+    parser.add_argument("--circular-id", default="sample_sebi_circular", help="ID for the root Circular node")
+    args = parser.parse_args()
+
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
     NEO4J_USER = os.getenv("NEO4J_USERNAME", "neo4j")
     NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
@@ -215,11 +194,15 @@ if __name__ == "__main__":
     openai_key = os.getenv("OPENAI_API_KEY")
     if not openai_key:
         print("Error: OPENAI_API_KEY not found in .env file.")
-        exit(1)
+        sys.exit(1)
     
     client = OpenAI(api_key=openai_key)
-    conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+    try:
+        conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+    except Exception as e:
+        print(f"Failed to connect to Neo4j: {e}")
+        sys.exit(1)
     
-    ingest_data(conn, client, "sebi_references.json", "sample_sebi_circular")
+    ingest_data(conn, client, args.json_file, args.circular_id)
     
     conn.close()

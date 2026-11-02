@@ -1,39 +1,20 @@
 import os
 import re
 from dotenv import load_dotenv
-from neo4j import GraphDatabase
 from openai import OpenAI
+from utils.neo4j_client import Neo4jConnection
 
-class Neo4jConnection:
-    def __init__(self, uri, user, pwd):
-        self.__uri = uri
-        self.__user = user
-        self.__password = pwd
-        self.__driver = None
-        try:
-            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password), max_connection_lifetime=200)
-            self.__driver.verify_connectivity()
-        except Exception as e:
-            print(f"Error connecting to Neo4j: {e}")
-            
-    def close(self):
-        if self.__driver is not None:
-            self.__driver.close()
-            
-    def execute_query(self, query, parameters=None):
-        if self.__driver is None:
-            raise Exception("Driver not initialized.")
-        try:
-            with self.__driver.session() as session:
-                result = session.run(query, parameters)
-                return [record.data() for record in result]
-        except Exception as e:
-            self.close()
-            self.__driver = GraphDatabase.driver(self.__uri, auth=(self.__user, self.__password), max_connection_lifetime=200)
-            self.__driver.verify_connectivity()
-            with self.__driver.session() as session:
-                result = session.run(query, parameters)
-                return [record.data() for record in result]
+# The LLM writes the Cypher, so refuse anything that could change the graph
+WRITE_CLAUSES = re.compile(r"\b(CREATE|MERGE|DELETE|DETACH|SET|REMOVE|DROP|LOAD\s+CSV|CALL\s+apoc)\b", re.IGNORECASE)
+
+def is_read_only(cypher: str) -> bool:
+    return not WRITE_CLAUSES.search(cypher)
+
+def run_generated_query(conn, cypher: str) -> list:
+    """Runs LLM-generated Cypher in a read transaction, after rejecting write clauses."""
+    if not is_read_only(cypher):
+        raise ValueError("Generated query tries to modify the graph; only read queries are allowed.")
+    return conn.execute_query(cypher, read_only=True)
 
 def llm_call(client: OpenAI, system_prompt: str, user_prompt: str) -> str:
     """Single unified LLM call using OpenAI gpt-4o-mini."""
@@ -50,19 +31,19 @@ def llm_call(client: OpenAI, system_prompt: str, user_prompt: str) -> str:
 def get_live_schema(conn) -> str:
     schema_parts = []
     try:
-        rels = conn.execute_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS type")
+        rels = conn.execute_query("MATCH ()-[r]->() RETURN DISTINCT type(r) AS type", read_only=True)
         schema_parts.append(f"Relationship types: {[r['type'] for r in rels]}")
-    except:
+    except Exception:
         schema_parts.append("Relationship types: ['REFERENCES', 'MODIFIES', 'CONTAINS']")
     try:
-        circulars = conn.execute_query("MATCH (c:Circular) RETURN c.id AS id")
+        circulars = conn.execute_query("MATCH (c:Circular) RETURN c.id AS id", read_only=True)
         schema_parts.append(f"Circular IDs: {[c['id'] for c in circulars]}")
-    except:
+    except Exception:
         pass
     try:
-        entities = conn.execute_query("MATCH (e:Entity) RETURN e.name AS name ORDER BY name")
+        entities = conn.execute_query("MATCH (e:Entity) RETURN e.name AS name ORDER BY name", read_only=True)
         schema_parts.append(f"Entity names:\n{chr(10).join('  - ' + e['name'] for e in entities)}")
-    except:
+    except Exception:
         pass
     return "\n".join(schema_parts)
 
@@ -90,11 +71,11 @@ User Question: {question}"""
     try:
         result = llm_call(client, system_prompt, user_prompt)
         # Strip accidental markdown fences
-        result = re.sub(r"^```(cypher)?\n", "", result, flags=re.IGNORECASE)
-        result = re.sub(r"\n```$", "", result)
+        result = re.sub(r"^```(cypher)?\s*", "", result, flags=re.IGNORECASE)
+        result = re.sub(r"\s*```$", "", result)
         return result.strip()
     except Exception as e:
-        print(f"\n  [DEBUG] OpenAI Cypher generation failed: {e}")
+        print(f"\n  Cypher generation failed: {e}")
         return ""
 
 def synthesize_answer(question: str, results: list, client: OpenAI) -> str:
@@ -127,7 +108,11 @@ def chat_interface():
         print("Error: OPENAI_API_KEY not found in .env file.")
         return
         
-    conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+    try:
+        conn = Neo4jConnection(NEO4J_URI, NEO4J_USER, NEO4J_PASSWORD)
+    except Exception as e:
+        print(f"Error connecting to Neo4j: {e}")
+        return
     client = OpenAI(api_key=openai_key)
     
     try:
@@ -152,7 +137,7 @@ def chat_interface():
             print(f"\n  [Generated Cypher]\n  {cypher_query}\n")
             
             try:
-                raw_results = conn.execute_query(cypher_query)
+                raw_results = run_generated_query(conn, cypher_query)
                 final_answer = synthesize_answer(question, raw_results, client)
                 print(f"\n{final_answer}\n")
             except Exception as e:

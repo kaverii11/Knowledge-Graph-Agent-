@@ -2,7 +2,8 @@ import os
 import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
-from query_graph import Neo4jConnection, get_cypher_query, get_live_schema, synthesize_answer
+from query_graph import get_cypher_query, get_live_schema, run_generated_query, synthesize_answer
+from utils.neo4j_client import Neo4jConnection
 
 load_dotenv()
 
@@ -32,16 +33,6 @@ st.markdown("""
         color: #6b7280;
         font-size: 0.95rem;
     }
-    .cypher-box {
-        background: #1e1e2e;
-        color: #89b4fa;
-        border-radius: 8px;
-        padding: 0.75rem 1rem;
-        font-family: 'Fira Code', monospace;
-        font-size: 0.8rem;
-        margin: 0.5rem 0;
-        overflow-x: auto;
-    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -58,11 +49,15 @@ st.divider()
 # ── Cached Resources (persist across reruns) ─────────────────────────────────
 @st.cache_resource
 def get_neo4j_connection():
-    return Neo4jConnection(
-        uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
-        user=os.getenv("NEO4J_USERNAME", "neo4j"),
-        pwd=os.getenv("NEO4J_PASSWORD", "password"),
-    )
+    try:
+        return Neo4jConnection(
+            uri=os.getenv("NEO4J_URI", "bolt://localhost:7687"),
+            user=os.getenv("NEO4J_USERNAME", "neo4j"),
+            pwd=os.getenv("NEO4J_PASSWORD", "password"),
+        )
+    except Exception as e:
+        st.error(f"Could not connect to Neo4j: {e}")
+        st.stop()
 
 @st.cache_resource
 def get_openai_client():
@@ -88,7 +83,7 @@ if "messages" not in st.session_state:
 # Render previous messages
 for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
-        st.markdown(msg["content"], unsafe_allow_html=True)
+        st.markdown(msg["content"])
 
 # ── Chat Input ───────────────────────────────────────────────────────────────
 if question := st.chat_input("e.g. Which circulars modify the SEBI Act?"):
@@ -108,10 +103,10 @@ if question := st.chat_input("e.g. Which circulars modify the SEBI Act?"):
             st.session_state.messages.append({"role": "assistant", "content": reply})
         else:
             # Show generated Cypher
-            st.markdown(f'<div class="cypher-box">{cypher_query}</div>', unsafe_allow_html=True)
+            st.code(cypher_query, language="cypher")
 
             try:
-                raw_results = conn.execute_query(cypher_query)
+                raw_results = run_generated_query(conn, cypher_query)
             except Exception as e:
                 reply = f"⚠️ Database error: `{e}`"
                 st.markdown(reply)
@@ -125,5 +120,5 @@ if question := st.chat_input("e.g. Which circulars modify the SEBI Act?"):
             st.markdown(answer)
 
             # Store full reply (Cypher + answer) in history
-            full_reply = f'<div class="cypher-box">{cypher_query}</div>\n\n{answer}'
+            full_reply = f"```cypher\n{cypher_query}\n```\n\n{answer}"
             st.session_state.messages.append({"role": "assistant", "content": full_reply})

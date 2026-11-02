@@ -3,13 +3,12 @@ import json
 import os
 import warnings
 from dotenv import load_dotenv
-from typing import List, Dict, Any
 
 # Suppress the false-positive LangChain deprecation warning for Python 3.14
 warnings.filterwarnings("ignore", message=".*Pydantic V1.*")
 
 from utils.pdf_parser import parse_pdf_structural
-from agent.graph import build_graph, GraphState
+from agent.graph import build_graph
 
 def process_pdf(file_path: str, output_path: str):
     print(f"Starting extraction for: {file_path}")
@@ -25,10 +24,10 @@ def process_pdf(file_path: str, output_path: str):
     print("Parsing PDF...")
     chunks = list(parse_pdf_structural(file_path, context_window_size=2))
     
-    print(f"DEBUG: Successfully extracted {len(chunks)} structural chunks.")
+    print(f"Extracted {len(chunks)} structural chunks.")
     
     if len(chunks) == 0:
-        print("DEBUG: Halting. The parser couldn't read the PDF structure.")
+        print("Halting: the parser couldn't read the PDF structure.")
         return
         
     all_extracted_references = []
@@ -48,14 +47,13 @@ def process_pdf(file_path: str, output_path: str):
         }
         
         # 4. Run LangGraph
-        config = {"configurable": {"thread_id": str(i)}}
-        result_state = graph.invoke(initial_state, config=config)
+        result_state = graph.invoke(initial_state)
         
         # 5. Collect resulting references
         refs = result_state.get("references", [])
         for ref in refs:
             # ref is an ExtractedReference Pydantic model
-            all_extracted_references.append(ref.model_dump())
+            all_extracted_references.append(ref.model_dump(mode="json"))
             
         if result_state.get("errors"):
             print(f"  Warning: Errors encountered during processing: {result_state['errors']}")

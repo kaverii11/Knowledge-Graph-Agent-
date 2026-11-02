@@ -9,3 +9,7 @@ __pycache__/
 # Data
 *.pdf
 *.json
+
+# Local secrets
+.env.*
+!.env.example
