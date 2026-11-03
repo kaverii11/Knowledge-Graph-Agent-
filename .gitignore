@@ -13,3 +13,13 @@ __pycache__/
 # Local secrets
 .env.*
 !.env.example
+
+# MLflow local store
+mlflow.db
+mlruns/
+mlartifacts/
+!evals/*.json
+!evals/ground_truth/*.json
+!evals/results/*.json
+!data/*.json
+!data/baseline/*.json

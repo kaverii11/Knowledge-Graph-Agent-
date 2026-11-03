@@ -1,0 +1,114 @@
+[
+  {
+    "id": "q01",
+    "question": "Which circulars refer to the Securities and Exchange Board of India Act, 1992?",
+    "expected": "All three circulars: HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 (Oct 30, 2026), HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026) and HO/(201)2026-DDHS-POD1/I/24467/2026 (Oct 27, 2026).",
+    "must_retrieve": [
+      "24814/2026",
+      "19251/2026",
+      "24467/2026"
+    ],
+    "expected_tool": "who_cites"
+  },
+  {
+    "id": "q02",
+    "question": "Which circular references the Information Technology Act, 2000?",
+    "expected": "Only HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (the August 20, 2026 circular on digitally signed Power of Attorney from FPIs).",
+    "must_retrieve": [
+      "19251/2026"
+    ],
+    "expected_tool": "who_cites"
+  },
+  {
+    "id": "q03",
+    "question": "Which circulars refer to the SEBI (Foreign Portfolio Investors) Regulations, 2019?",
+    "expected": "The two FPI circulars: HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 and HO/19/34/14(8)2026-AFD-POD2/I/19251/2026.",
+    "must_retrieve": [
+      "24814/2026",
+      "19251/2026"
+    ],
+    "expected_tool": "who_cites"
+  },
+  {
+    "id": "q04",
+    "question": "Which circulars modify the FPI Master Circular?",
+    "expected": "Both FPI circulars modify it: HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026, Para 9(B)(iv) of Part B) and HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 (Oct 30, 2026, KYC review periodicity).",
+    "must_retrieve": [
+      "19251/2026"
+    ],
+    "expected_tool": "who_cites"
+  },
+  {
+    "id": "q05",
+    "question": "Which regulations does the debenture trustee timeline extension circular refer to?",
+    "expected": "SEBI (Debenture Trustees) Regulations, 1993 and SEBI (Debenture Trustees) (Amendment) Regulations, 2025.",
+    "must_retrieve": [
+      "Debenture Trustees) Regulations, 1993",
+      "(Amendment) Regulations, 2025"
+    ],
+    "expected_tool": "circular_references"
+  },
+  {
+    "id": "q06",
+    "question": "Which earlier SEBI circulars does the debenture trustee circular refer to?",
+    "expected": "The SEBI circular HO/17/11/12(3)2025-DDHS-POD1/I/146/2025 dated November 25, 2025, and the SEBI circular dated April 28, 2026.",
+    "must_retrieve": [
+      "November 25, 2025",
+      "April 28, 2026"
+    ],
+    "expected_tool": "circular_references"
+  },
+  {
+    "id": "q07",
+    "question": "How many circulars are in the knowledge graph?",
+    "expected": "Three circulars.",
+    "must_retrieve": [
+      "3"
+    ],
+    "expected_tool": "list_circulars"
+  },
+  {
+    "id": "q08",
+    "question": "What is the subject of the circular issued on October 30, 2026?",
+    "expected": "Rationalisation of periodicity of KYC review for FPIs (HO/19/34/14(10)2026-AFD-POD3/I/24814/2026).",
+    "must_retrieve": [
+      "KYC review"
+    ],
+    "expected_tool": "list_circulars"
+  },
+  {
+    "id": "q09",
+    "question": "Does any circular in the graph reference the Companies Act, 2013?",
+    "expected": "No. None of the circulars reference the Companies Act, 2013.",
+    "must_retrieve": [],
+    "expected_tool": "search_documents"
+  },
+  {
+    "id": "q10",
+    "question": "What is the circular number of the FPI Master Circular?",
+    "expected": "SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70 (dated May 30, 2024).",
+    "must_retrieve": [
+      "SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70"
+    ],
+    "expected_tool": "search_documents"
+  },
+  {
+    "id": "q11",
+    "question": "On which page does the FPI KYC review circular cite the SEBI Act, 1992?",
+    "expected": "Page 3.",
+    "must_retrieve": [
+      "3"
+    ],
+    "expected_tool": "circular_references"
+  },
+  {
+    "id": "q12",
+    "question": "Which documents are cited by both FPI circulars?",
+    "expected": "The SEBI Act, 1992; the SEBI (Foreign Portfolio Investors) Regulations, 2019; and the FPI Master Circular (May 30, 2024).",
+    "must_retrieve": [
+      "Foreign Portfolio Investors) Regulations, 2019",
+      "Master Circular"
+    ],
+    "expected_tool": "run_cypher"
+  }
+]

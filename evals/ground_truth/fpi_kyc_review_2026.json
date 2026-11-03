@@ -1,0 +1,33 @@
+[
+  {
+    "page_number": 1,
+    "title": "Master Circular for FPIs, DDPs and Eligible Foreign Investors dated May 30, 2024",
+    "aliases": [
+      "Master Circular for Foreign Portfolio Investors, Designated Depository Participants and Eligible Foreign Investors",
+      "FPI Master Circular",
+      "SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70",
+      "Master Circular"
+    ],
+    "reference_type": "circular",
+    "relation": "modifies"
+  },
+  {
+    "page_number": 3,
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "aliases": [
+      "SEBI Act, 1992"
+    ],
+    "reference_type": "act",
+    "relation": "references"
+  },
+  {
+    "page_number": 3,
+    "title": "SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "aliases": [
+      "Foreign Portfolio Investors Regulations, 2019",
+      "FPI Regulations"
+    ],
+    "reference_type": "regulation",
+    "relation": "references"
+  }
+]

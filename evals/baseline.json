@@ -1,0 +1,12 @@
+{
+  "agent": {
+    "query_ok_rate": 1.0,
+    "retrieval_hit_rate": 1.0,
+    "correctness": 0.875,
+    "grounded_rate": 0.9166666666666666,
+    "avg_latency_s": 6.935
+  },
+  "tool_selection": {
+    "accuracy": 0.8333333333333334
+  }
+}

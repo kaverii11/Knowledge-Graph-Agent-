@@ -1,0 +1,47 @@
+[
+  {
+    "title": "Master Circular for FPIs, DDPs and Eligible Foreign Investors dated May 30, 2024",
+    "reference_type": "circular",
+    "context_snippet": "Para 5 of Part B of the Master Circular for FPIs, DDPs and Eligible Foreign Investors dated May 30, 2024, as amended from time to time",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Investor Charter for Designated Depository Participants at Annexure-H",
+    "reference_type": "circular",
+    "context_snippet": "Investor Charter for Designated Depository Participants at Annexure-H",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Regulation 5(a)(i)",
+    "reference_type": "regulation",
+    "context_snippet": "Regulation 5(a)(i) \u2013 every 8 years",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "reference_type": "regulation",
+    "context_snippet": "Section 11(1) of the Securities and Exchange Board of India Act, 1992 read with Regulation 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "reference_type": "act",
+    "context_snippet": "Section 11(1) of the Securities and Exchange Board of India Act, 1992 read with Regulation 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  }
+]

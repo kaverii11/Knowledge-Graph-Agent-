@@ -1,0 +1,74 @@
+[
+  {
+    "title": "SEBI circular HO/17/11/12(3)2025-DDHS-POD1/ I/146/2025 dated November 25, 2025",
+    "reference_type": "circular",
+    "context_snippet": "vide SEBI circular HO/17/11/12(3)2025-DDHS-POD1/ I/146/2025 dated November 25, 2025",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI (Debenture Trustees) (Amendment) Regulations, 2025",
+    "reference_type": "regulation",
+    "context_snippet": "notification of the SEBI (Debenture Trustees) (Amendment) Regulations, 2025 in the Official Gazette",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI (Debenture Trustees) Regulations, 1993",
+    "reference_type": "regulation",
+    "context_snippet": "amendments to the SEBI (Debenture Trustees) Regulations, 1993 (\u201cDT Regulations\u201d) were notified",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "HO/17/11/12(3)2025-DDHS-POD1/I/146/2025",
+    "reference_type": "circular",
+    "context_snippet": "...enture trustees, was specified vide SEBI circular HO/17/11/12(3)2025-DDHS-POD1/ I/146/2025 dated November 25, 2025. Based on representations...",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "regex"
+  },
+  {
+    "title": "SEBI Circular dated April 28, 2026",
+    "reference_type": "circular",
+    "context_snippet": "vide SEBI Circular dated April 28, 2026",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "reference_type": "act",
+    "context_snippet": "Section 11(1) of Securities and Exchange Board of India Act, 1992",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI (Debenture Trustees) Regulations, 1993",
+    "reference_type": "regulation",
+    "context_snippet": "Regulation 2A of SEBI (Debenture Trustees) Regulations, 1993",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI Circular dated November 25, 2025",
+    "reference_type": "circular",
+    "context_snippet": "All other provisions of the SEBI Circular dated November 25, 2025 shall remain unchanged.",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  }
+]

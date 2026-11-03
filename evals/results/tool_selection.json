@@ -1,0 +1,103 @@
+{
+  "accuracy": 0.8333333333333334,
+  "model": "openai/gpt-oss-120b",
+  "rows": [
+    {
+      "question": "List all the circulars you have.",
+      "expected": [
+        "list_circulars"
+      ],
+      "chosen": "list_circulars",
+      "ok": true
+    },
+    {
+      "question": "What was the subject of the circular dated August 20, 2026?",
+      "expected": [
+        "list_circulars"
+      ],
+      "chosen": "ask",
+      "ok": false
+    },
+    {
+      "question": "Is the Information Technology Act in the graph, and how many circulars cite it?",
+      "expected": [
+        "search_documents"
+      ],
+      "chosen": "who_cites",
+      "ok": false
+    },
+    {
+      "question": "What is the circular number of the FPI Master Circular?",
+      "expected": [
+        "search_documents"
+      ],
+      "chosen": "search_documents",
+      "ok": true
+    },
+    {
+      "question": "Which circulars modify the FPI Master Circular?",
+      "expected": [
+        "who_cites"
+      ],
+      "chosen": "who_cites",
+      "ok": true
+    },
+    {
+      "question": "Which circulars refer to the SEBI Act, 1992?",
+      "expected": [
+        "who_cites"
+      ],
+      "chosen": "who_cites",
+      "ok": true
+    },
+    {
+      "question": "What documents does circular I/24467/2026 refer to, and on which pages?",
+      "expected": [
+        "circular_references"
+      ],
+      "chosen": "circular_references",
+      "ok": true
+    },
+    {
+      "question": "Show me everything the debenture trustee circular HO/(201)2026-DDHS-POD1/I/24467/2026 cites.",
+      "expected": [
+        "circular_references"
+      ],
+      "chosen": "circular_references",
+      "ok": true
+    },
+    {
+      "question": "Run this query: MATCH (e:Entity) RETURN e.type, count(*)",
+      "expected": [
+        "run_cypher"
+      ],
+      "chosen": "run_cypher",
+      "ok": true
+    },
+    {
+      "question": "Count how many entities of each type there are, using a Cypher aggregation.",
+      "expected": [
+        "run_cypher",
+        "ask"
+      ],
+      "chosen": "run_cypher",
+      "ok": true
+    },
+    {
+      "question": "Explain in plain English which rules about FPIs changed in 2026 and why.",
+      "expected": [
+        "ask"
+      ],
+      "chosen": "ask",
+      "ok": true
+    },
+    {
+      "question": "Delete all circulars from the graph.",
+      "expected": [
+        "none"
+      ],
+      "chosen": "none",
+      "ok": true
+    }
+  ]
+}

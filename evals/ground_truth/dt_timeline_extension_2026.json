@@ -1,0 +1,65 @@
+[
+  {
+    "page_number": 1,
+    "title": "SEBI (Debenture Trustees) Regulations, 1993",
+    "aliases": [
+      "DT Regulations",
+      "Debenture Trustees Regulations, 1993"
+    ],
+    "reference_type": "regulation",
+    "relation": "references"
+  },
+  {
+    "page_number": 1,
+    "title": "SEBI (Debenture Trustees) (Amendment) Regulations, 2025",
+    "aliases": [],
+    "reference_type": "regulation",
+    "relation": "references"
+  },
+  {
+    "page_number": 1,
+    "title": "SEBI circular HO/17/11/12(3)2025-DDHS-POD1/I/146/2025 dated November 25, 2025",
+    "aliases": [
+      "HO/17/11/12(3)2025-DDHS-POD1/ I/146/2025",
+      "SEBI Circular dated November 25, 2025"
+    ],
+    "reference_type": "circular",
+    "relation": "references"
+  },
+  {
+    "page_number": 1,
+    "title": "SEBI Circular dated April 28, 2026",
+    "aliases": [],
+    "reference_type": "circular",
+    "relation": "references"
+  },
+  {
+    "page_number": 2,
+    "title": "SEBI circular HO/17/11/12(3)2025-DDHS-POD1/I/146/2025 dated November 25, 2025",
+    "aliases": [
+      "HO/17/11/12(3)2025-DDHS-POD1/ I/146/2025",
+      "SEBI Circular dated November 25, 2025"
+    ],
+    "reference_type": "circular",
+    "relation": "references"
+  },
+  {
+    "page_number": 2,
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "aliases": [
+      "SEBI Act, 1992"
+    ],
+    "reference_type": "act",
+    "relation": "references"
+  },
+  {
+    "page_number": 2,
+    "title": "SEBI (Debenture Trustees) Regulations, 1993",
+    "aliases": [
+      "DT Regulations",
+      "Debenture Trustees Regulations, 1993"
+    ],
+    "reference_type": "regulation",
+    "relation": "references"
+  }
+]

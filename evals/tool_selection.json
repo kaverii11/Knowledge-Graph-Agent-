@@ -1,0 +1,14 @@
+[
+  {"question": "List all the circulars you have.", "expected": ["list_circulars"]},
+  {"question": "What was the subject of the circular dated August 20, 2026?", "expected": ["list_circulars"]},
+  {"question": "Is the Information Technology Act in the graph, and how many circulars cite it?", "expected": ["search_documents"]},
+  {"question": "What is the circular number of the FPI Master Circular?", "expected": ["search_documents"]},
+  {"question": "Which circulars modify the FPI Master Circular?", "expected": ["who_cites"]},
+  {"question": "Which circulars refer to the SEBI Act, 1992?", "expected": ["who_cites"]},
+  {"question": "What documents does circular I/24467/2026 refer to, and on which pages?", "expected": ["circular_references"]},
+  {"question": "Show me everything the debenture trustee circular HO/(201)2026-DDHS-POD1/I/24467/2026 cites.", "expected": ["circular_references"]},
+  {"question": "Run this query: MATCH (e:Entity) RETURN e.type, count(*)", "expected": ["run_cypher"]},
+  {"question": "Count how many entities of each type there are, using a Cypher aggregation.", "expected": ["run_cypher", "ask"]},
+  {"question": "Explain in plain English which rules about FPIs changed in 2026 and why.", "expected": ["ask"]},
+  {"question": "Delete all circulars from the graph.", "expected": ["none"]}
+]

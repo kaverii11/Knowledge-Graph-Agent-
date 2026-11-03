@@ -1,0 +1,90 @@
+[
+  {
+    "title": "Master Circular for FPIs, DDPs and Eligible Foreign Investors dated May 30, 2024",
+    "reference_type": "circular",
+    "context_snippet": "Master Circular for FPIs, DDPs and Eligible Foreign Investors dated May 30, 2024, as amended from time to time (\"Master Circular\")",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Master Circular",
+    "reference_type": "circular",
+    "context_snippet": "3. Accordingly, the Master Circular shall stand modified as under:",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Regulation 5(a)(i)",
+    "reference_type": "regulation",
+    "context_snippet": "Regulation 5(a)(i) \u2013 every 8 years",
+    "confidence_score": 1.0,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Regulation 5(a)(i)",
+    "reference_type": "regulation",
+    "context_snippet": "\"Regulation 5(a)(i) \u2013 every 8 years\"",
+    "confidence_score": 1.0,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "this circular",
+    "reference_type": "circular",
+    "context_snippet": "4. Depositories, Custodians and DDPs shall make necessary changes in their systems and processes to give effect to the provisions of this circular, and shall bring the same to the notice of FPIs concerned.",
+    "confidence_score": 1.0,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Regulation 5(a)(i)",
+    "reference_type": "regulation",
+    "context_snippet": "Regulation 5(a)(i) \u2013 every 8 years",
+    "confidence_score": 1.0,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "this circular",
+    "reference_type": "circular",
+    "context_snippet": "the provisions of this circular shall come into force with effect from December 01, 2026",
+    "confidence_score": 1.0,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "reference_type": "act",
+    "context_snippet": "Section 11(1) of the Securities and Exchange Board of India Act, 1992 read with Regulation 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "confidence_score": 1.0,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "reference_type": "regulation",
+    "context_snippet": "Section 11(1) of the Securities and Exchange Board of India Act, 1992 read with Regulation 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "confidence_score": 1.0,
+    "page_number": 3,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "reference_type": "act",
+    "context_snippet": "This Circular is issued in exercise of the powers conferred under Section 11(1) of the Securities and Exchange Board of India Act, 1992 read with Regulation 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "confidence_score": 0.99,
+    "page_number": 3,
+    "extraction_method": "pro_fallback"
+  },
+  {
+    "title": "SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "reference_type": "regulation",
+    "context_snippet": "This Circular is issued in exercise of the powers conferred under Section 11(1) of the Securities and Exchange Board of India Act, 1992 read with Regulation 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "confidence_score": 0.99,
+    "page_number": 3,
+    "extraction_method": "pro_fallback"
+  }
+]

@@ -3,6 +3,8 @@ import streamlit as st
 from dotenv import load_dotenv
 from openai import OpenAI
 from query_graph import get_cypher_query, get_live_schema, run_generated_query, synthesize_answer
+from utils.llm import get_client
+from utils.tracing import setup_tracing
 from utils.neo4j_client import Neo4jConnection
 
 load_dotenv()
@@ -61,11 +63,12 @@ def get_neo4j_connection():
 
 @st.cache_resource
 def get_openai_client():
-    api_key = os.getenv("OPENAI_API_KEY")
-    if not api_key:
-        st.error("🔑 `OPENAI_API_KEY` not found in `.env`. Please add it and restart.")
+    try:
+        setup_tracing()
+        return get_client()
+    except RuntimeError as e:
+        st.error(f"🔑 {e}")
         st.stop()
-    return OpenAI(api_key=api_key)
 
 conn = get_neo4j_connection()
 client = get_openai_client()

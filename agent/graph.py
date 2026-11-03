@@ -5,12 +5,12 @@ from typing import TypedDict, List, Literal, Optional
 from langgraph.graph import StateGraph, END
 from schemas.models import ExtractedReference, LLMExtractionResult, ExtractionMethod, ReferenceType
 from openai import OpenAI, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError
+from utils.llm import FAST_MODEL, PRO_MODEL, get_client
+from utils.circular_ids import find_circular_ids
 from tenacity import retry, wait_exponential, stop_after_attempt, retry_if_exception_type
 
 # Below this, an extraction is sent to the stronger model for a second pass
 CONFIDENCE_THRESHOLD = 0.7
-FAST_MODEL = "gpt-4o-mini"
-PRO_MODEL = "gpt-4o"
 
 class GraphState(TypedDict):
     chunk_text: str
@@ -20,6 +20,7 @@ class GraphState(TypedDict):
     references: List[ExtractedReference]
     validation_status: str
     errors: List[str]
+    self_id: Optional[str]  # the circular's own number, so it isn't counted as a reference to itself
 
 def extract_regex(state: GraphState) -> GraphState:
     text = state["chunk_text"]
@@ -28,13 +29,10 @@ def extract_regex(state: GraphState) -> GraphState:
     if not text:
         return {"references": references}
         
-    # SEBI circular IDs like SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2023/71 or SEBI/HO/OIAE/OIAE_IAD-1/P/CIR/2023/156.
-    # Department codes mix case ("PoD") and underscores, so the prefix accepts [\w-], not just capitals.
-    sebi_pattern = r"(SEBI/[\w/\-]*?(?:CIR|Master)[/\w\-]*\w)"
-    matches = re.finditer(sebi_pattern, text)
-    
-    for match in matches:
-        ref_id = match.group(1)
+    # Old (SEBI/HO/.../CIR/2023/71) and new (HO/19/34/14(10)2026-AFD-POD3/I/24814/2026) circular numbers
+    for ref_id, match in find_circular_ids(text):
+        if ref_id == state.get("self_id"):
+            continue
         # Find some surrounding context
         start = max(0, match.start() - 50)
         end = min(len(text), match.end() + 50)
@@ -53,8 +51,24 @@ def extract_regex(state: GraphState) -> GraphState:
             
     return {"references": references}
 
+
+EXTRACTION_RULES = """Rules:
+- Only extract references that appear in the CURRENT TEXT CHUNK. The context is only for resolving
+  short names (e.g. "the Master Circular", "DT Regulations") to the full title; never extract from it.
+- Extract documents: acts, regulations, circulars, master circulars. Use the full title as written
+  (include the circular number or date when given).
+- A provision of a document ("Regulation 2A of the DT Regulations", "Section 11(1) of the SEBI Act")
+  is a reference to that document: give the document's title.
+- Do NOT extract: the current circular itself ("this circular"), bare provision numbers with no
+  document named ("Regulation 9C"), people, departments, websites.
+- Each document at most once per chunk.
+- relation: "modifies" only when this circular itself changes text in that document (e.g. "shall stand
+  modified", "shall be substituted", "shall be omitted"); everything else is "references".
+- confidence_score: how sure you are this is a real reference to another document (lower it for
+  vague or partial mentions)."""
+
 def get_llm_client() -> OpenAI:
-    return OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+    return get_client()
 
 # Only transient errors (rate limits, timeouts, 5xx) are worth retrying; bad requests or auth errors fail fast
 @retry(
@@ -108,13 +122,15 @@ def extract_fast_llm(state: GraphState) -> GraphState:
     prompt = f"""
     You are a legal AI assistant. Extract all mentions of other legal documents, circulars, acts, or regulations from the document.
     Do not duplicate standard SEBI circular IDs if you see them, but extract names of Acts, Regulations, or non-standard references.
-    
-    Context from previous sections (use for resolving pronouns like 'the aforementioned act'):
+
+    {EXTRACTION_RULES}
+
+    Context from previous sections (ONLY for resolving short names, do not extract from it):
     {context}
     """
     
     if text:
-        prompt += f"\n\nCurrent Text Chunk to process:\n{text}"
+        prompt += f"\n\nCURRENT TEXT CHUNK to process:\n{text}"
     else:
         prompt += "\n\nPlease extract references from the attached document image."
     
@@ -160,12 +176,14 @@ def refine_pro(state: GraphState) -> GraphState:
     prompt = f"""
     The previous extraction had validation issues or low confidence. Please carefully extract all legal references from this document.
     Ensure high accuracy.
-    
-    Context: {context}
+
+    {EXTRACTION_RULES}
+
+    Context (ONLY for resolving short names, do not extract from it): {context}
     """
     
     if text:
-        prompt += f"\n\nText: {text}"
+        prompt += f"\n\nCURRENT TEXT CHUNK:\n{text}"
     else:
         prompt += "\n\nPlease carefully extract references from the attached document image."
     

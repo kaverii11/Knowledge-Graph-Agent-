@@ -56,36 +56,25 @@ def parse_pdf_structural(file_path: str, context_window_size: int = 2) -> Iterat
                     "page_number": page_num + 1
                 })
         else:
-            # Native PyMuPDF Path (Block-based parsing)
+            # Native text path. Works line by line: some PDFs put a whole page in one text block,
+            # so block-level splitting missed clause markers. A chunk never crosses a page break,
+            # so every reference keeps the page it was actually printed on.
             for page_num in range(len(doc)):
                 page = doc[page_num]
-                
-                # Get blocks of text
-                blocks = page.get_text("blocks")
-                
-                for block in blocks:
-                    # Check if block is text (block_type == 0)
-                    if len(block) >= 7 and block[6] == 0:
-                        text = block[4].strip()
-                        if not text:
-                            continue
-                        
-                        # If we find a structural marker, we flush the current chunk
-                        if is_structural_marker(text):
-                            if current_chunk_text.strip():
-                                chunks.append({
-                                    "chunk_text": current_chunk_text.strip(),
-                                    "page_number": current_chunk_start_page
-                                })
-                            # Start a new chunk
-                            current_chunk_text = text + "\n"
-                            current_chunk_start_page = page_num + 1 # 1-indexed
-                        else:
-                            # Append to current chunk
-                            if not current_chunk_text:
-                                current_chunk_start_page = page_num + 1
-                            current_chunk_text += text + "\n"
-                        
+                if current_chunk_text.strip():
+                    chunks.append({"chunk_text": current_chunk_text.strip(), "page_number": current_chunk_start_page})
+                current_chunk_text = ""
+                current_chunk_start_page = page_num + 1
+
+                for line in page.get_text("text").splitlines():
+                    text = line.strip()
+                    if not text:
+                        continue
+                    if is_structural_marker(text) and current_chunk_text.strip():
+                        chunks.append({"chunk_text": current_chunk_text.strip(), "page_number": current_chunk_start_page})
+                        current_chunk_text = ""
+                    current_chunk_text += text + "\n"
+
     # Flush the last chunk
     if current_chunk_text.strip():
         chunks.append({
