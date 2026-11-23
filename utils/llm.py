@@ -17,11 +17,25 @@ JUDGE_MODEL = os.getenv("JUDGE_MODEL", PRO_MODEL)      # LLM-as-a-judge in evals
 EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
 
 
+# The model that answers questions (single-shot and agent) can run on a second provider while the judge
+# stays where it is, e.g. QUERY_PROVIDER=cloudflare to spread eval runs over two free tiers. Both modes of one
+# eval run always use the same provider.
+QUERY_PROVIDER = os.getenv("QUERY_PROVIDER", "default").lower()
+if QUERY_PROVIDER == "cloudflare":
+    QUERY_MODEL = os.getenv("CLOUDFLARE_QUERY_MODEL", "@cf/openai/gpt-oss-120b")
+
+
 def has_llm_key() -> bool:
     return bool(os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY"))
 
 
-def get_client() -> OpenAI:
+def get_client(role: str = "default") -> OpenAI:
+    """role="query": the client for the answering model (honours QUERY_PROVIDER); anything else: the default."""
+    if role == "query" and QUERY_PROVIDER == "cloudflare":
+        account, token = os.getenv("CLOUDFLARE_ACCOUNT_ID"), os.getenv("CLOUDFLARE_API_TOKEN")
+        if not account or not token:
+            raise RuntimeError("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env")
+        return OpenAI(api_key=token, base_url=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1")
     api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("Set OPENAI_API_KEY (or LLM_API_KEY + LLM_BASE_URL) in .env")

@@ -38,7 +38,8 @@ from openai import BadRequestError, RateLimitError, APIConnectionError, APITimeo
 
 from agent.loop import is_no_answer
 from query_graph import answer, get_live_schema, is_read_only
-from utils.llm import JUDGE_MODEL, PRO_MODEL, QUERY_MODEL, CountingClient, get_client, is_daily_limit, should_retry
+from utils.llm import (JUDGE_MODEL, PRO_MODEL, QUERY_MODEL, QUERY_PROVIDER, CountingClient, get_client,
+                       is_daily_limit, should_retry)
 from utils.neo4j_client import Neo4jConnection
 from utils.tracing import setup_tracing, trace
 
@@ -46,6 +47,7 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 DATASETS = {"qa": ["qa_dataset.json"], "multihop": ["multihop_dataset.json"],
             "all": ["qa_dataset.json", "multihop_dataset.json"]}
 GROQ_INPUT_TPM = int(os.getenv("LLM_INPUT_TPM", "7000"))  # pacing only; 0 switches it off
+QUERY_INPUT_TPM = int(os.getenv("QUERY_INPUT_TPM", str(GROQ_INPUT_TPM)))  # answering model, if on another provider
 INVALID_CALL = ("Error: arguments are not valid JSON", "Error: there is no tool", "Error: invalid arguments")
 
 
@@ -199,7 +201,7 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
         client=None, judge_client=None, conn=None, write=True, first_run=1):
     import mlflow
     setup_tracing()
-    client = CountingClient(client or get_client(), GROQ_INPUT_TPM or None)
+    client = CountingClient(client or get_client("query"), QUERY_INPUT_TPM or None)
     judge_client = CountingClient(judge_client or get_client(), GROQ_INPUT_TPM or None)
     conn = conn or Neo4jConnection(os.getenv("NEO4J_URI"), os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
     items = load_items(dataset, split, ids)
@@ -264,6 +266,7 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
     print(json.dumps(metrics["overall"], indent=2))
 
     info = {"mode": mode, "dataset": dataset, "split": split, "repeats": repeats, "query_model": QUERY_MODEL,
+            "query_provider": QUERY_PROVIDER,
             "judge_model": JUDGE_MODEL, "judge_tokens": sum(r.get("judge_tokens", 0) for r in rows)}
     if mode == "agent":
         from agent.loop import MAX_STEPS, TOKEN_BUDGET

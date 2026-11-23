@@ -368,7 +368,7 @@ def run_agent(question: str, conn=None, client=None, model: str | None = None, m
     if conn is not None:
         import mcp_server
         mcp_server.set_connection(conn)
-    client = client or get_client()
+    client = client or get_client("query")
     agent = build_agent(client, model or QUERY_MODEL, max_steps, token_budget, tools)
     t0 = time.time()
     state = agent.invoke({
