@@ -32,6 +32,9 @@ def load(name):
 def rows():
     single = load("single_all.json") + load("single_multihop_pass3.json")
     agent = load("agent_all.json") + load("agent_multihop_pass3.json")
+    if not agent:  # these runs were stopped when the free-tier quotas ran out; their finished rows were kept
+        agent = [json.loads(line) for f in ("agent_all_run1_unfinished.jsonl", "agent_multihop_pass3_unfinished.jsonl")
+                 for line in open(os.path.join(R, f))]
     pick = lambda rs: [r for r in rs if (r["split"] == "regression" and r["run"] == 1)
                        or (r["split"] != "regression" and r["run"] == 2)]
     return pick(single), pick(agent), single, agent

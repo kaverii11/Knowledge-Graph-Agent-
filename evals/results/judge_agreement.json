@@ -1,0 +1,19 @@
+{
+  "n": 20,
+  "exact_agreement": 0.9,
+  "kappa_3_labels": 0.56,
+  "agreement_correct_vs_not": 0.95,
+  "kappa_correct_vs_not": 0.773,
+  "disagreements": [
+    {
+      "key": "single|m14|2",
+      "human": "correct",
+      "judge": "partial"
+    },
+    {
+      "key": "single|m18|2",
+      "human": "partial",
+      "judge": "incorrect"
+    }
+  ]
+}

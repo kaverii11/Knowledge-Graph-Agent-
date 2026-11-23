@@ -49,7 +49,8 @@ def main(paths: list[str]):
     manual = json.load(open(LABELS)) if os.path.exists(LABELS) else {}
     by_mode, listing = {}, []
     for p in paths:
-        for r in json.load(open(p if os.path.isabs(p) else os.path.join(HERE, p)))["rows"]:
+        rows = json.load(open(p if os.path.isabs(p) else os.path.join(HERE, p)))["rows"]
+        for r in ([x for v in rows.values() for x in v] if isinstance(rows, dict) else rows):  # comparison.json: {mode: rows}
             if r["verdict"] == "correct" and r["grounded"]:
                 continue
             key = f"{r['mode']}|{r['id']}|{r.get('run', 1)}"

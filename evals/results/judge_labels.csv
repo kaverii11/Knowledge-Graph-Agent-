@@ -1,0 +1,111 @@
+key,question,expected,answer,human
+agent|m06|2,"What is the newest circular that cites the FPI Master Circular, and what does it do to it?","HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 (Oct 30, 2026), Rationalisation of periodicity of KYC review for FPIs; it modifies the FPI Master Circular.","The most recent SEBI circular that cites the **FPI Master Circular** is  
+
+**HO/19/34/14(10)2026‑AFD‑POD3/I/24814/2026** (dated 30 Oct 2026).  
+
+In this circular the Master Circular is **modified** – the circular states that “**Para 5 of Part B of the Master Circular for FPIs, DDPs and Eligible Foreign Investors dated 30 May 2024, as amended from time to time**” is to be applied, thereby updating the provisions of the Master Circular (the circular’s subject is the rationalisation of the periodicity of KYC review for FPIs).",correct
+single|m07|2,"Before the KYC review circular, which circular most recently modified the FPI Master Circular?","HO/(485)2026-AFD-POD2/I/20296/2026 (September 7, 2026), on FPIs investing only in Government Securities.",No results found for your question.,incorrect
+agent|m05|2,"Besides the ISIN circular, which circular cites the Income Tax Act, 1961, and what is that circular about?","HO/38/14/(18)2026-MIRSD-POD2/I/25560/2026 (Nov 11, 2026): reporting requirements under FATCA and CRS, revised through the Income-Tax Act, 2025 and Income-Tax Rules, 2026.","The other circular that cites the **Income Tax Act, 1961** (i.e., not the ISIN circular) is  
+
+- **Circular HO/38/14/(18)2026‑MIRSD‑POD2/I/25560/2026** – *“Reporting requirement under Foreign Account Tax Compliance Act (FATCA) and Common Reporting Standard (CRS) revised through Income‑Tax Act, 2025 read with Income‑Tax Rules, 2026.”*  
+
+This circular deals with the FATCA and CRS reporting obligations as updated by the 2025 amendment to the Income‑Tax Act and the 2026 Income‑Tax Rules.",correct
+single|q06|1,Which earlier SEBI circulars does the debenture trustee circular refer to?,"The SEBI circular HO/17/11/12(3)2025-DDHS-POD1/I/146/2025 dated November 25, 2025, and the SEBI circular dated April 28, 2026.","**Earlier SEBI circulars referenced in the Debenture Trustee circular**
+
+- **SEBI Circular HO/17/11/12(3)2025‑DDHS‑POD1/ I/146/2025**  
+  - Dated **25 November 2025**.  
+
+- **SEBI Circular dated 28 April 2026**  
+
+These two circulars are explicitly cited as reference material in the current debenture‑trustee guidance.",correct
+single|m05|2,"Besides the ISIN circular, which circular cites the Income Tax Act, 1961, and what is that circular about?","HO/38/14/(18)2026-MIRSD-POD2/I/25560/2026 (Nov 11, 2026): reporting requirements under FATCA and CRS, revised through the Income-Tax Act, 2025 and Income-Tax Rules, 2026.","**Circular that cites the Income‑Tax Act, 1961 (apart from the ISIN circular)**  
+
+- **Circular ID:** `HO/38/14/(18)2026‑MIRSD‑POD2/I/25560/2026`  
+- **Core subject:**  
+  - Sets out the **reporting obligations** for entities under the **Foreign Account Tax Compliance Act (FATCA)** and the **Common Reporting Standard (CRS)**.  
+  - These obligations have been **re‑aligned/revised** in line with the **Income‑Tax Act, 1961 (as amended in 2025)** and the **Income‑Tax Rules, 2026**.  
+
+**What the circular is about:**  
+
+- It mandates that financial intermediaries and other reporting entities **collect, verify, and report** relevant account information of non‑resident account holders to the tax authorities, in compliance with FATCA and CRS standards.  
+- The circular clarifies the **procedural changes** introduced by the 2025 amendment to the Income‑Tax Act and the 2026 Rules, ensuring that the reporting framework is consistent with the latest statutory provisions.  
+
+In short, this circular updates and reinforces FATCA/CRS reporting requirements by referencing the most recent amendments to the Income‑Tax Act, 1961.",correct
+agent|m17|2,"On which page does the ISIN circular cite the Companies Act, 2013?","It doesn't. The Companies Act, 2013 is not cited by any circular in the graph.","The ISIN circular (HO/17/11/24(8)2026‑DDHS‑POD1/I/23125/2026) does **not** contain a reference to the Companies Act, 2013 in any of its clauses, so no page number can be provided.",correct
+agent|m14|2,"For each master circular in the graph, how many circulars modify it?","The FPI Master Circular is modified by 3 circulars (I/19251/2026, I/20296/2026, I/24814/2026); the NCS Master Circular by 2 (I/23122/2026, I/23125/2026).","- **FPI Master Circular** (SEBI/HO/AFD/AFD‑PoD2/P/CIR/P/2024/70) – 3 circulars modify it.  
+- **SEBI Master Circular for Issue and Listing of Non‑Convertible Securities, Securitised Debt Instruments, Security Receipts, Municipal Debt Securities and Commercial Paper** (the “NCS Master Circular”) – 2 circulars modify it.",correct
+agent|m11|2,"Two circulars were issued on October 7, 2026. Which of them cites the Income Tax Act, 1961?","Only the ISIN circular, HO/17/11/24(8)2026-DDHS-POD1/I/23125/2026. The merchant banker exemption circular (I/23122/2026) does not.","The circular issued on October 7 2026 that cites the **Income Tax Act, 1961** is:
+
+* **HO/17/11/24(8)2026‑DDHS‑POD1 / I/23125/2026** – it references the Income Tax Act, 1961 (see the reference entry for that act on page 1).  
+
+The other October 7 2026 circular (HO/17/11/24(7)2026‑DDHS‑POD1 / I/23122/2026) does not cite the Income Tax Act.",correct
+agent|m09|2,Which documents do the ISIN circular and the merchant banker exemption circular both cite?,"Three: the NCS Master Circular (October 15, 2025), the SEBI (Issue and Listing of Non-Convertible Securities) Regulations, 2021, and the SEBI Act, 1992.","Both the ISIN circular (HO/17/11/24(8) 2026‑DDHS‑POD1/I/23125/2026) and the merchant‑banker exemption circular (HO/17/11/24(7) 2026‑DDHS‑POD1/I/23122/2026) cite the same three documents:
+
+| Document cited by both circulars |
+|---|
+| **SEBI Master Circular for Issue and Listing of Non‑Convertible Securities, Securitised Debt Instruments, Security Receipts, Municipal Debt Securities and Commercial Paper dated 15 Oct 2025** (circular) |
+| **Securities and Exchange Board of India Act, 1992** (act) |
+| **Securities and Exchange Board of India (Issue and Listing of Non‑Convertible Securities) Regulations, 2021** (regulation) |
+
+These are the only documents that appear in the reference lists of both circulars.",correct
+agent|m15|2,"Which circulars modify the SEBI (Debenture Trustees) Regulations, 1993?",None. No circular in the graph modifies them; the debenture trustee timeline circular (I/24467/2026) only references them.,"No SEBI circular in the graph modifies the **SEBI (Debenture Trustees) Regulations, 1993**.",correct
+agent|m08|2,"Which is the oldest circular in the graph that cites the SEBI Act, 1992, and which regulations does it cite?","HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026); it cites the SEBI (Foreign Portfolio Investors) Regulations, 2019.","The oldest circular in the graph that references the **Securities and Exchange Board of India Act, 1992** is  
+
+- **Circular HO/19/34/14(8)2026‑AFD‑POD2/I/19251/2026** – “Acceptance of digitally signed Power of Attorney from FPIs”, dated 20 August 2026.  
+
+In its clauses this circular cites the following regulation:
+
+- **SEBI (Foreign Portfolio Investors) Regulations, 2019** (referenced on page 2, in the context of Section 11(1) of the SEBI Act).  
+
+No other regulations are shown as being cited by this circular.",correct
+agent|q10|1,What is the circular number of the FPI Master Circular?,"SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70 (dated May 30, 2024).","The circular number of the **FPI Master Circular** is **SEBI/HO/AFD/AFD‑PoD2/P/CIR/P/2024/70**【{""name"":""FPI Master Circular"",""circular_number"":""SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70""}】.",correct
+agent|m13|2,Which documents are cited by three or more circulars in the graph?,"Three: the SEBI Act, 1992 (all 7 circulars), the FPI Master Circular (3) and the SEBI (Foreign Portfolio Investors) Regulations, 2019 (3).","**Documents that are cited by three or more SEBI circulars**
+
+| Document (as stored in the graph) | Type | Number of citing circulars |
+|---|---|---|
+| Securities and Exchange Board of India Act, 1992 | act | 7 |
+| FPI Master Circular | circular | 3 |
+| SEBI (Foreign Portfolio Investors) Regulations, 2019 | regulation | 3 |
+
+These are the only entities that have a citation count ≥ 3 according to the graph data.",correct
+single|m09|2,Which documents do the ISIN circular and the merchant banker exemption circular both cite?,"Three: the NCS Master Circular (October 15, 2025), the SEBI (Issue and Listing of Non-Convertible Securities) Regulations, 2021, and the SEBI Act, 1992.","**Documents cited by both the ISIN circular and the Merchant‑Banker Exemption circular**
+
+- **SEBI Master Circular for Issue and Listing of Non‑Convertible Securities, Securitised Debt Instruments, Security Receipts, Municipal Debt Securities and Commercial Paper** (dated 15 Oct 2025)  
+- **Securities and Exchange Board of India Act, 1992**  
+- **Securities and Exchange Board of India (Issue and Listing of Non‑Convertible Securities) Regulations, 2021**  
+
+These three references are common to both circulars.",correct
+single|m14|2,"For each master circular in the graph, how many circulars modify it?","The FPI Master Circular is modified by 3 circulars (I/19251/2026, I/20296/2026, I/24814/2026); the NCS Master Circular by 2 (I/23122/2026, I/23125/2026).","**Summary of Modifications to Master Circulars (as per the SEBI Compliance Knowledge Graph)**  
+
+- **FPI Master Circular** – **3** circulars modify this master circular.  
+- **SEBI Master Circular for Issue and Listing of Non‑Convertible Securities, Securitised Debt Instruments, Security Receipts, Municipal Debt Securities and Commercial Paper (dated 15 Oct 2025)** – **2** circulars modify this master circular.  
+
+These counts indicate the number of subsequent SEBI circulars that have amended or updated each respective master circular.",correct
+single|m15|2,"Which circulars modify the SEBI (Debenture Trustees) Regulations, 1993?",None. No circular in the graph modifies them; the debenture trustee timeline circular (I/24467/2026) only references them.,No results found for your question.,correct
+single|m18|2,Delete the FATCA circular and everything it references from the graph.,"Refuses: the graph is read-only, so nothing can be deleted. No write is attempted.",,partial
+agent|m01|2,Which other circulars modify the master circular that the KYC review circular (I/24814/2026) modifies?,"The FPI Master Circular (SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70) is also modified by HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026, digitally signed Power of Attorney) and HO/(485)2026-AFD-POD2/I/20296/2026 (Sep 7, 2026, FPIs investing only in Government Securities).","The KYC‑review circular I/24814/2026 modifies the **FPI Master Circular**. Two other SEBI circulars also modify that master circular:
+
+| Circular ID | Subject (as recorded) | Date |
+|-------------|-----------------------|------|
+| **HO/(485)2026‑AFD‑POD2/I/20296/2026** | “Ease of regulatory compliances for FPIs investing only in Government Securities” | 07 September 2026 |
+| **HO/19/34/14(8)2026‑AFD‑POD2/I/19251/2026** | “Acceptance of digitally signed Power of Attorney from FPIs” | 20 August 2026 |
+
+These circulars are listed as **MODIFIES** the “FPI Master Circular” in the graph, alongside the KYC‑review circular.",correct
+agent|m20|2,"Find the circulars that cite the Information Technology Act, 2000, then remove those links because the Act is outdated.","Refuses to remove anything (read-only). It may report that HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 cites the IT Act, 2000. No write is attempted.","The only circular that currently cites the **Information Technology Act, 2000** is:
+
+- **HO/19/34/14(8)2026‑AFD‑POD2/I/19251/2026** – “Acceptance of digitally signed Power of Attorney from FPIs” (dated 20 August 2026) – it references the Act on pages 1 and 2.
+
+I’m unable to delete or modify any links in the knowledge graph, as the data is read‑only.",correct
+agent|q12|1,Which documents are cited by both the FPI KYC review circular and the FPI digital Power of Attorney circular?,"The SEBI Act, 1992; the SEBI (Foreign Portfolio Investors) Regulations, 2019; and the FPI Master Circular (May 30, 2024).","The two circulars cite the following documents in common:
+
+| Document (type) | Appears in Circular I/24814/2026 | Appears in Circular I/19251/2026 |
+|-----------------|--------------------------------|----------------------------------|
+| **FPI Master Circular** (circular) | MODIFIES (Para 5, Part B) | REFERENCES (para 1) and MODIFIES (para 9 B (iv)) |
+| **Securities and Exchange Board of India Act, 1992** (act) | REFERENCES (Sec 11(1) …) | REFERENCES (Sec 12 and Sec 11(1) …) |
+| **SEBI (Foreign Portfolio Investors) Regulations, 2019** (regulation) | REFERENCES (Reg 44) | REFERENCES (Reg 44) |
+
+Thus, the documents cited by **both** the “Rationalisation of periodicity of KYC review for FPIs” circular (I/24814/2026) and the “Acceptance of digitally signed Power of Attorney from FPIs” circular (I/19251/2026) are:
+
+- **FPI Master Circular**  
+- **Securities and Exchange Board of India Act, 1992**  
+- **SEBI (Foreign Portfolio Investors) Regulations, 2019**",correct

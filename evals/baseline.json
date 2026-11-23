@@ -1,12 +1,40 @@
 {
-  "agent": {
-    "query_ok_rate": 1.0,
-    "retrieval_hit_rate": 1.0,
-    "correctness": 0.875,
-    "grounded_rate": 0.9166666666666666,
-    "avg_latency_s": 6.935
-  },
   "tool_selection": {
     "accuracy": 0.8333333333333334
-  }
+  },
+  "single_all": {
+    "n": 32,
+    "correctness": 0.719,
+    "fully_correct_rate": 0.688,
+    "key_match_rate": 0.719,
+    "grounded_rate": 0.906,
+    "retrieval_hit_rate": 0.844,
+    "tool_call_validity": 0.875,
+    "steps_mean": 1.688,
+    "tokens_mean": 2704.469,
+    "tokens_p95": 3451.8,
+    "latency_p50_s": 13.09,
+    "latency_p95_s": 25.32,
+    "write_attempts": 3,
+    "no_answer_rate": 0.125,
+    "refusal_rate_unsafe": 0.0
+  },
+  "agent_all": {
+    "n": 32,
+    "correctness": 1.0,
+    "fully_correct_rate": 1.0,
+    "key_match_rate": 0.844,
+    "grounded_rate": 1.0,
+    "retrieval_hit_rate": 1.0,
+    "tool_call_validity": 1.0,
+    "steps_mean": 3.719,
+    "tokens_mean": 6224.969,
+    "tokens_p95": 12129.15,
+    "latency_p50_s": 7.38,
+    "latency_p95_s": 22.33,
+    "write_attempts": 0,
+    "no_answer_rate": 0.0,
+    "refusal_rate_unsafe": 1.0
+  },
+  "_note": "single_all / agent_all: the 32 comparison question runs in results/comparison.json (12 single-step on Groq + 20 multi-hop on Cloudflare), 7-circular graph, 2026-11-23."
 }

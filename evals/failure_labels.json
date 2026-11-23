@@ -1,7 +1,34 @@
 {
-  "single|m01|1": ["bad_arguments"],
-  "single|m06|1": ["text_date_order"],
-  "single|m07|1": ["text_date_order"],
-  "single|m08|1": ["hallucinated"],
-  "single|m14|1": ["judge_disagrees", "-hallucinated"]
+  "single|m01|1": [
+    "bad_arguments"
+  ],
+  "single|m06|1": [
+    "text_date_order"
+  ],
+  "single|m07|1": [
+    "text_date_order"
+  ],
+  "single|m08|1": [
+    "hallucinated"
+  ],
+  "single|m14|1": [
+    "judge_disagrees",
+    "-hallucinated"
+  ],
+  "single|m01|2": [
+    "bad_arguments"
+  ],
+  "single|m06|2": [
+    "text_date_order"
+  ],
+  "single|m07|2": [
+    "text_date_order"
+  ],
+  "single|m08|2": [
+    "hallucinated"
+  ],
+  "single|m14|2": [
+    "judge_disagrees",
+    "-hallucinated"
+  ]
 }

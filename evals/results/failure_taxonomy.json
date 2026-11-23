@@ -1,0 +1,10 @@
+{
+  "single": {
+    "incomplete": 2,
+    "bad_arguments": 2,
+    "hallucinated": 3,
+    "text_date_order": 2,
+    "judge_disagrees": 1,
+    "no_refusal": 3
+  }
+}
