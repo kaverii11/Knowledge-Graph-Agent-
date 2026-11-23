@@ -55,3 +55,9 @@ def test_pass_k_needs_every_run_correct():
     m = summarize([row("a", "correct"), row("b", "correct"), row("a", "correct"), row("b", "partial"),
                    row("a", "correct"), row("b", "correct")])
     assert m["pass^3"] == 0.5 and m["fully_correct_rate"] == round(5 / 6, 3)
+
+
+def test_cohens_kappa():
+    from evals.judge_agreement import kappa
+    assert kappa(["correct", "incorrect"] * 5, ["correct", "incorrect"] * 5) == 1.0
+    assert kappa(["correct", "correct", "incorrect", "incorrect"], ["correct", "incorrect", "correct", "incorrect"]) == 0.0
