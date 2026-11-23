@@ -2,7 +2,8 @@ import os
 import re
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+from utils.llm import should_retry
 from utils.llm import QUERY_MODEL, get_client
 from utils.neo4j_client import Neo4jConnection
 from utils.tracing import setup_tracing, trace
@@ -25,7 +26,7 @@ def run_generated_query(conn, cypher: str) -> list:
     return conn.execute_query(cypher, read_only=True)
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=4, max=60), reraise=True,
-       retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)))
+       retry=retry_if_exception(should_retry))
 def llm_call(client: OpenAI, system_prompt: str, user_prompt: str) -> str:
     """Single LLM call on the query model."""
     response = client.chat.completions.create(
@@ -98,6 +99,8 @@ User Question: {question}"""
         result = re.sub(r"^```(cypher)?\s*", "", result, flags=re.IGNORECASE)
         result = re.sub(r"\s*```$", "", result)
         return result.strip()
+    except RateLimitError:
+        raise  # out of quota is not a bad question: let the caller (CLI, eval runner) decide
     except Exception as e:
         print(f"\n  Cypher generation failed: {e}")
         return ""
@@ -118,6 +121,8 @@ Neo4j Results:
 
     try:
         return llm_call(client, system_prompt, user_prompt)
+    except RateLimitError:
+        raise
     except Exception as e:
         return f"Error synthesizing answer: {e}"
 

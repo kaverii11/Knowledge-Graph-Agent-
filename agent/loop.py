@@ -32,9 +32,10 @@ import re
 import time
 from typing import Any, Literal, TypedDict
 
-from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+from openai import APIConnectionError, APITimeoutError, BadRequestError, InternalServerError, RateLimitError
 from pydantic import ConfigDict, ValidationError, create_model
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+from utils.llm import should_retry
 
 from langgraph.graph import END, StateGraph
 
@@ -42,8 +43,10 @@ from utils.circular_ids import find_circular_ids
 from utils.tracing import span, trace
 
 MAX_STEPS = int(os.getenv("AGENT_MAX_STEPS", "6"))
-# Provisional. Phase 3 replaces it with a value derived from token use measured on the tuning split.
-TOKEN_BUDGET = int(os.getenv("AGENT_TOKEN_BUDGET", "40000"))
+# Set from the tuning split (8 tune questions, 2 runs, 16 question runs): the largest run that ended with an
+# answer used 12,086 tokens (it hit the step limit); 1.5x that, rounded, leaves room for a harder question
+# while stopping a runaway loop. Measured before the held-out questions were run.
+TOKEN_BUDGET = int(os.getenv("AGENT_TOKEN_BUDGET", "18000"))
 MAX_RESULT_CHARS = 6000  # a tool result longer than this is cut, and the model is told so
 
 SYSTEM_PROMPT = """You answer questions about a knowledge graph of SEBI (India's securities regulator) circulars
@@ -66,6 +69,8 @@ How to work:
 
 Final answer: short and direct, and answer every part of the question. Cite the circular numbers (the last part, e.g. I/24814/2026, is enough) and
 document names your answer rests on, and only state what the tool results show."""
+
+UNKNOWN_TOOL = re.compile(r"attempted to call tool '([^']+)' which was not in request\.tools")
 
 LOOP_NUDGE = ("You already called {tool} with these exact arguments; the result is earlier in this conversation. "
               "Use it, or call a different tool / different arguments, or give your final answer.")
@@ -188,6 +193,7 @@ class AgentState(TypedDict, total=False):
     rows: list                 # every row any tool returned, for grounding and citations
     nudged_cite: bool
     final_without_tools: bool  # step limit reached: next model call gets no tools
+    bad_tool_retries: int      # provider-rejected calls to tools that don't exist
     answer: str
     stop_reason: str           # answered | step_limit | token_budget | loop | llm_error
     citations: list
@@ -204,7 +210,7 @@ def _assistant_dict(msg) -> dict:
 
 
 @retry(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=2, min=4, max=60), reraise=True,
-       retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)))
+       retry=retry_if_exception(should_retry))
 def _chat(client, model, messages, tools):
     kwargs = {"model": model, "messages": messages, "temperature": 0.1}
     if tools:
@@ -222,7 +228,23 @@ def build_agent(client, model: str, max_steps: int = MAX_STEPS, token_budget: in
         with span("model_step", "LLM", step=state["steps"] + 1, tools_offered=bool(offer_tools)) as s:
             try:
                 r = _chat(client, model, state["messages"], offer_tools)
-            except Exception as e:  # rate limit after retries, bad request, network
+            except RateLimitError:
+                raise  # out of quota is not an agent failure: the caller decides (wait, or stop and resume)
+            except BadRequestError as e:
+                bad = UNKNOWN_TOOL.search(str(e))
+                if bad and state.get("bad_tool_retries", 0) < 2:
+                    # The provider rejected a call to a tool that doesn't exist (gpt-oss sometimes calls its
+                    # built-in tools, e.g. 'container.exec'): tell the model and let it try again
+                    entry = {"step": state["steps"] + 1, "tool": bad.group(1), "args": "", "ok": False,
+                             "error": f"Error: there is no tool called '{bad.group(1)}'.", "result_rows": 0,
+                             "result_chars": 0, "latency_s": 0.0, "write_attempt": False}
+                    nudge = (f"There is no tool called '{bad.group(1)}'. The only tools are: {', '.join(fns)}. "
+                             "Call one of them, or give your final answer.")
+                    return {"messages": state["messages"] + [{"role": "user", "content": nudge}],
+                            "steps": state["steps"] + 1, "tool_calls": state["tool_calls"] + [entry],
+                            "bad_tool_retries": state.get("bad_tool_retries", 0) + 1}
+                return {"stop_reason": "llm_error", "error": f"{type(e).__name__}: {e}", "steps": state["steps"] + 1}
+            except Exception as e:  # network errors after retries, anything unexpected
                 return {"stop_reason": "llm_error", "error": f"{type(e).__name__}: {e}",
                         "steps": state["steps"] + 1}
             usage = getattr(r, "usage", None)
@@ -307,11 +329,13 @@ def build_agent(client, model: str, max_steps: int = MAX_STEPS, token_budget: in
         return {"messages": state["messages"] + [{"role": "user", "content": STEP_LIMIT_NUDGE}],
                 "final_without_tools": True, "stop_reason": "step_limit"}
 
-    def after_model(state: AgentState) -> Literal["tools", "check", "end"]:
+    def after_model(state: AgentState) -> Literal["tools", "check", "model", "force_final", "end"]:
         if state.get("stop_reason") == "llm_error":
             return "end"
         if state["tokens"] >= token_budget:
             return "end"
+        if state["messages"][-1]["role"] == "user":  # rejected call to a non-existent tool: try again
+            return "force_final" if state["steps"] >= max_steps else "model"
         return "tools" if state["messages"][-1].get("tool_calls") else "check"
 
     def after_tools(state: AgentState) -> Literal["model", "force_final", "end"]:
@@ -328,7 +352,8 @@ def build_agent(client, model: str, max_steps: int = MAX_STEPS, token_budget: in
     g.add_node("check", check_answer)
     g.add_node("force_final", force_final)
     g.set_entry_point("model")
-    g.add_conditional_edges("model", after_model, {"tools": "tools", "check": "check", "end": END})
+    g.add_conditional_edges("model", after_model, {"tools": "tools", "check": "check", "model": "model",
+                                                   "force_final": "force_final", "end": END})
     g.add_conditional_edges("tools", after_tools, {"model": "model", "force_final": "force_final", "end": END})
     g.add_conditional_edges("check", after_check, {"model": "model", "end": END})
     g.add_edge("force_final", "model")

@@ -245,3 +245,38 @@ def test_empty_who_cites_says_whether_the_document_exists(conn):
     assert "1 matching document" in found and "That is the answer" in found
     missing = _empty_result_hint(fns, "who_cites", {"document": "Companies Act", "relation": "any"})
     assert "no document in the graph matches" in missing
+
+
+def test_call_to_a_tool_that_does_not_exist_is_reported_back(conn):
+    import httpx
+    from openai import BadRequestError
+    rejected = BadRequestError("Error code: 400 - Tool call validation failed: attempted to call tool "
+                               "'container.exec' which was not in request.tools",
+                               response=httpx.Response(400, request=httpx.Request("POST", "http://x")), body=None)
+
+    class Rejecting(FakeLLM):
+        def create(self, **kwargs):
+            if not self.sent:
+                self.sent.append(kwargs)
+                raise rejected
+            return super().create(**kwargs)
+
+    llm = Rejecting(reply(tool_calls=[call("who_cites", document="FPI Master Circular", relation="modifies")]),
+                    reply("I/19251/2026 modifies the FPI Master Circular."))
+    out = ask(llm, conn)
+    assert out["stop_reason"] == "answered" and out["tool_calls"][0]["tool"] == "container.exec"
+    assert "no tool called 'container.exec'" in llm.sent[1]["messages"][-1]["content"]
+
+
+def test_daily_limit_is_not_turned_into_a_failed_answer(conn):
+    import httpx
+    from openai import RateLimitError
+    limit = RateLimitError("Rate limit reached for model on tokens per day (TPD): Limit 200000",
+                           response=httpx.Response(429, request=httpx.Request("POST", "http://x")), body=None)
+
+    class OutOfQuota(FakeLLM):
+        def create(self, **kwargs):
+            raise limit
+
+    with pytest.raises(RateLimitError):
+        ask(OutOfQuota(), conn)

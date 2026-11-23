@@ -75,3 +75,15 @@ class CountingClient:
                 return
             oldest = min(c["t"] for c in self.calls if now - c["t"] < 60)
             time.sleep(max(1.0, 60 - (now - oldest) + 0.5))
+
+
+def is_daily_limit(e: Exception) -> bool:
+    """Groq's per-day token / request limit: waiting a minute won't help, so don't retry it."""
+    return "per day" in str(e).lower()
+
+
+def should_retry(e: Exception) -> bool:
+    """Transient API errors (rate limit per minute, timeouts, 5xx) are retried; the daily limit is not."""
+    from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+    return isinstance(e, (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)) \
+        and not is_daily_limit(e)

@@ -68,3 +68,29 @@ def test_judge_rows_keep_every_distinct_row():
     rows = [{"circular_id": f"I/{i}/2026", "evidence": "x" * 2000} for i in range(20)] * 2
     text = compact_rows(rows)
     assert "I/19/2026" in text and "more characters not shown" not in text and text.count("I/0/2026") == 1
+
+
+def test_daily_limit_stops_the_run_and_the_next_run_resumes(tmp_path, monkeypatch):
+    import httpx
+    import pytest
+    from openai import RateLimitError
+    import evals.run_agent_evals as ev
+    monkeypatch.setattr(ev, "HERE", str(tmp_path))
+    for name in ("qa_dataset.json", "multihop_dataset.json"):
+        (tmp_path / name).write_text(open(f"evals/{name}").read())
+    limit = RateLimitError("tokens per day (TPD)", response=httpx.Response(429, request=httpx.Request("POST", "http://x")), body=None)
+
+    class QuotaAfterOne(FakeLLM):
+        def create(self, **kwargs):
+            if len(self.sent) >= 2:
+                raise limit
+            return super().create(**kwargs)
+
+    first = QuotaAfterOne(reply(tool_calls=[call("list_circulars")]), reply("I/24814/2026 is the newest."))
+    with pytest.raises(SystemExit):
+        ev.run(mode="agent", dataset="multihop", ids=["m06", "m07"], client=first, judge_client=FakeJudge(), conn=FakeConn())
+    assert len((tmp_path / "results" / "agent_multihop.partial.jsonl").read_text().splitlines()) == 1
+    second = FakeLLM(reply("I/20296/2026, on September 7, 2026."))
+    m = ev.run(mode="agent", dataset="multihop", ids=["m06", "m07"], client=second, judge_client=FakeJudge(), conn=FakeConn())
+    assert m["n"] == 2 and len(second.sent) == 1                     # only the unfinished question ran
+    assert not (tmp_path / "results" / "agent_multihop.partial.jsonl").exists()

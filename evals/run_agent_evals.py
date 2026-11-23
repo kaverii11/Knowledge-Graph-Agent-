@@ -33,12 +33,12 @@ from typing import Literal
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from pydantic import BaseModel
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
 from openai import BadRequestError, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError
 
 from agent.loop import is_no_answer
 from query_graph import answer, get_live_schema, is_read_only
-from utils.llm import JUDGE_MODEL, PRO_MODEL, QUERY_MODEL, CountingClient, get_client
+from utils.llm import JUDGE_MODEL, PRO_MODEL, QUERY_MODEL, CountingClient, get_client, is_daily_limit, should_retry
 from utils.neo4j_client import Neo4jConnection
 from utils.tracing import setup_tracing, trace
 
@@ -76,7 +76,7 @@ Give a one-sentence reason."""
 
 
 @retry(stop=stop_after_attempt(6), wait=wait_exponential(multiplier=2, min=5, max=60), reraise=True,
-       retry=retry_if_exception_type((RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)))
+       retry=retry_if_exception(should_retry))
 def _judge_once(client, model, msg) -> Verdict:
     r = client.beta.chat.completions.parse(model=model, messages=[{"role": "user", "content": msg}],
                                            response_format=Verdict, temperature=0)
@@ -204,18 +204,34 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
     conn = conn or Neo4jConnection(os.getenv("NEO4J_URI"), os.getenv("NEO4J_USERNAME"), os.getenv("NEO4J_PASSWORD"))
     items = load_items(dataset, split, ids)
     schema = get_live_schema(conn)
-    rows = []
+    name = "_".join(x for x in [mode, dataset, None if split == "all" else split, tag or None] if x)
+    partial = os.path.join(HERE, "results", f"{name}.partial.jsonl")
+    # Runs can span days on a free tier: finished questions are saved as they complete, and re-running the
+    # same command resumes where the daily limit stopped it
+    rows = [json.loads(line) for line in open(partial)] if write and os.path.exists(partial) else []
+    done = {(r["id"], r["run"]) for r in rows}
+    if rows:
+        print(f"Resuming {name}: {len(rows)} question runs already done")
     for rep in range(repeats):
         for item in items:
+            if (item["id"], rep + 1) in done:
+                continue
             client.wait_for_budget(headroom=4000)
             mark, t0 = client.mark(), time.time()
-            out = answer(item["question"], conn, client, mode, schema)
-            latency = time.time() - t0
+            jmark = judge_client.mark()
+            try:
+                out = answer(item["question"], conn, client, mode, schema)
+                latency = time.time() - t0
+                judge_client.wait_for_budget(headroom=3000)
+                v, judged_by = judge(judge_client, item, out)
+            except RateLimitError as e:
+                # Out of quota is not a wrong answer: stop without recording this question
+                print(f"\nStopped at {item['id']} run {rep + 1}: {'daily limit' if is_daily_limit(e) else 'rate limit'} "
+                      f"reached ({str(e)[:200]}). {len(rows)} question runs saved; re-run the same command to resume.")
+                raise SystemExit(3)
             used = client.since(mark)
             trace_id = mlflow.get_last_active_trace_id()
             blob = _norm(json.dumps(out["results"], default=str, ensure_ascii=False))
-            judge_client.wait_for_budget(headroom=3000)
-            v, judged_by = judge(judge_client, item, out)
             writes = write_attempts(out)
             row = {"id": item["id"], "run": rep + 1, "type": item["type"], "split": item["split"],
                    "unsafe": item["unsafe"], "answerable": item["answerable"], "mode": mode,
@@ -231,8 +247,13 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
                    "refused": item["unsafe"] and writes == 0 and is_no_answer(out["answer"]),
                    "steps": out.get("steps", used["requests"]), "requests": used["requests"],
                    "prompt_tokens": used["prompt_tokens"], "completion_tokens": used["completion_tokens"],
-                   "tokens": used["tokens"], "latency_s": round(latency, 2), "trace_id": trace_id}
+                   "tokens": used["tokens"], "latency_s": round(latency, 2), "trace_id": trace_id,
+                   "judge_tokens": judge_client.since(jmark)["tokens"]}
             rows.append(row)
+            if write:
+                os.makedirs(os.path.dirname(partial), exist_ok=True)
+                with open(partial, "a", encoding="utf-8") as f:
+                    f.write(json.dumps(row, ensure_ascii=False, default=str) + "\n")
             print(f"[{mode}] run {rep + 1} {item['id']:4s} {v.correctness:9s} key={row['key_match']!s:5s} "
                   f"grounded={v.grounded!s:5s} steps={row['steps']} tokens={row['tokens']} {latency:.1f}s", flush=True)
 
@@ -243,18 +264,20 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
     print(json.dumps(metrics["overall"], indent=2))
 
     info = {"mode": mode, "dataset": dataset, "split": split, "repeats": repeats, "query_model": QUERY_MODEL,
-            "judge_model": JUDGE_MODEL, "judge_tokens": judge_client.since(0)["tokens"]}
+            "judge_model": JUDGE_MODEL, "judge_tokens": sum(r.get("judge_tokens", 0) for r in rows)}
     if mode == "agent":
         from agent.loop import MAX_STEPS, TOKEN_BUDGET
         info.update(max_steps=MAX_STEPS, token_budget=TOKEN_BUDGET)
     if write:
         os.makedirs(os.path.join(HERE, "results"), exist_ok=True)
-        name = "_".join(x for x in [mode, dataset, None if split == "all" else split, tag or None] if x)
         json.dump({"info": info, "metrics": metrics, "rows": rows},
                   open(os.path.join(HERE, "results", f"{name}.json"), "w"), indent=2, ensure_ascii=False, default=str)
         with mlflow.start_run(run_name=f"qa-eval {name}"):
             mlflow.log_params({k: v for k, v in info.items()})
-            mlflow.log_metrics({k: v for k, v in metrics["overall"].items() if isinstance(v, (int, float))})
+            mlflow.log_metrics({k.replace("^", "_pow_"): v for k, v in metrics["overall"].items()
+                                if isinstance(v, (int, float))})
+        if os.path.exists(partial):
+            os.remove(partial)
     if save_baseline:
         _save_baseline(f"{mode}_{dataset}", metrics["overall"])
     return metrics["overall"]
