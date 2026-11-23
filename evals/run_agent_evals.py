@@ -196,7 +196,7 @@ def load_items(dataset: str, split: str = "all", ids: list | None = None) -> lis
 
 
 def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", repeats=1, ids=None,
-        client=None, judge_client=None, conn=None, write=True):
+        client=None, judge_client=None, conn=None, write=True, first_run=1):
     import mlflow
     setup_tracing()
     client = CountingClient(client or get_client(), GROQ_INPUT_TPM or None)
@@ -212,7 +212,7 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
     done = {(r["id"], r["run"]) for r in rows}
     if rows:
         print(f"Resuming {name}: {len(rows)} question runs already done")
-    for rep in range(repeats):
+    for rep in range(first_run - 1, repeats):
         for item in items:
             if (item["id"], rep + 1) in done:
                 continue
@@ -296,8 +296,10 @@ if __name__ == "__main__":
     ap.add_argument("--dataset", choices=list(DATASETS), default="qa")
     ap.add_argument("--split", choices=["all", "regression", "tune", "heldout"], default="all")
     ap.add_argument("--repeats", type=int, default=1)
+    ap.add_argument("--first-run", type=int, default=1,
+                    help="start at this run number, e.g. --repeats 3 --first-run 2 adds runs 2-3 to an earlier run 1")
     ap.add_argument("--ids", nargs="*")
     ap.add_argument("--save-baseline", action="store_true")
     ap.add_argument("--tag", default="")
     a = ap.parse_args()
-    run(a.save_baseline, a.tag, a.mode, a.dataset, a.split, a.repeats, a.ids)
+    run(a.save_baseline, a.tag, a.mode, a.dataset, a.split, a.repeats, a.ids, first_run=a.first_run)
