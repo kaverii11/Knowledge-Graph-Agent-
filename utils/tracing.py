@@ -7,6 +7,7 @@ token usage, latency) and each tool / database call. View them with:
 
 Set MLFLOW_TRACING=0 to switch it off.
 """
+import contextlib
 import os
 
 _enabled = False
@@ -43,3 +44,21 @@ def trace(span_type: str = "UNKNOWN", name: str | None = None):
     if name:
         kwargs["name"] = name
     return mlflow.trace(**kwargs)
+
+
+class _NoSpan:
+    def set_inputs(self, *a, **k): pass
+    def set_outputs(self, *a, **k): pass
+    def set_attributes(self, *a, **k): pass
+
+
+@contextlib.contextmanager
+def span(name: str, span_type: str = "UNKNOWN", **attributes):
+    """A child span with attributes (tool, args, result size, tokens, latency) when tracing is on;
+    a no-op otherwise, so unit tests and runs with MLFLOW_TRACING=0 record nothing."""
+    if not _enabled:
+        yield _NoSpan()
+        return
+    import mlflow
+    with mlflow.start_span(name=name, span_type=span_type, attributes=attributes or None) as s:
+        yield s

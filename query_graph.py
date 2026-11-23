@@ -139,7 +139,25 @@ def answer_question(question: str, conn, client: OpenAI, live_schema: str | None
     return {"question": question, "cypher": cypher, "results": results,
             "answer": synthesize_answer(question, results, client), "error": None}
 
-def chat_interface():
+ASK_MODES = ("single", "agent")
+
+
+def answer(question: str, conn, client: OpenAI, mode: str | None = None, live_schema: str | None = None) -> dict:
+    """Answer with the single-shot text-to-Cypher agent (the baseline) or the tool-using agent loop.
+
+    mode: "single" or "agent"; defaults to the ASK_MODE environment variable, else "single".
+    Both return question / answer / results / cypher / error; the loop adds steps, tokens and its tool calls.
+    """
+    mode = (mode or os.getenv("ASK_MODE") or "single").strip().lower()
+    if mode not in ASK_MODES:
+        raise ValueError(f"mode must be one of {ASK_MODES}, got {mode!r}")
+    if mode == "agent":
+        from agent.loop import run_agent
+        return run_agent(question, conn, client)
+    return {**answer_question(question, conn, client, live_schema), "mode": "single"}
+
+
+def chat_interface(mode: str | None = None):
     load_dotenv()
     
     NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
@@ -171,11 +189,17 @@ def chat_interface():
             if not question.strip():
                 continue
             
-            out = answer_question(question, conn, client, live_schema)
-            if not out["cypher"]:
+            out = answer(question, conn, client, mode, live_schema)
+            if out["mode"] == "agent":
+                for c in out["tool_calls"]:
+                    print(f"  [step {c['step']}] {c['tool']}({c['args']}) -> "
+                          f"{str(c['result_rows']) + ' rows' if c['ok'] else c['error']}")
+                print(f"  [{out['steps']} model calls, {out['tokens']} tokens, stopped: {out['stop_reason']}]")
+            elif not out["cypher"]:
                 print("\n  Sorry, I couldn't understand that question. Try rephrasing.\n")
                 continue
-            print(f"\n  [Generated Cypher]\n  {out['cypher']}\n")
+            else:
+                print(f"\n  [Generated Cypher]\n  {out['cypher']}\n")
             if out["error"]:
                 print(f"\n  Sorry, there was a database error: {out['error']}\n")
             else:
@@ -188,4 +212,8 @@ def chat_interface():
         conn.close()
 
 if __name__ == "__main__":
-    chat_interface()
+    import argparse
+    ap = argparse.ArgumentParser(description="Ask the SEBI knowledge graph questions in the terminal")
+    ap.add_argument("--mode", choices=ASK_MODES, default=None,
+                    help="single = one generated Cypher query (baseline); agent = tool-using loop (default: ASK_MODE or single)")
+    chat_interface(ap.parse_args().mode)

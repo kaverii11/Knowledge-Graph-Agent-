@@ -55,7 +55,7 @@ def process_pdf(file_path: str, output_path: str):
     issued = DATE.search(first_page)
     meta = {"circular_id": own_id, "source_pdf": os.path.basename(file_path),
             "subject": " ".join(subject.group(1).split()) if subject else None,
-            "date": issued.group(0) if issued else None}
+            "date": " ".join(issued.group(0).split()) if issued else None}
     
     for i, chunk_data in enumerate(chunks):
         print(f"Processing chunk {i+1} on page {chunk_data['page_number']}...")

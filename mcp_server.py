@@ -20,7 +20,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.exceptions import ToolError
 from mcp.types import ToolAnnotations
 
-from query_graph import answer_question, get_live_schema, is_read_only
+from query_graph import answer, get_live_schema, is_read_only
 from utils.neo4j_client import Neo4jConnection
 from utils.tracing import setup_tracing, trace
 
@@ -147,10 +147,12 @@ def run_cypher(
 @server.tool(annotations=READ_ONLY)
 @trace(span_type="TOOL")
 def ask(question: Annotated[str, Field(min_length=5, max_length=500)]) -> dict:
-    """Answer a plain-English question about the circulars. An LLM writes a Cypher query, it is checked
-    to be read-only and run, and the answer is written only from the rows returned."""
+    """Answer a plain-English question about the circulars. An LLM looks up the graph with read-only
+    queries and the answer is written only from the rows returned."""
+    # ASK_MODE=single (default): one generated Cypher query. ASK_MODE=agent: the tool-using loop in
+    # agent/loop.py, which calls the other tools on this server step by step. Same inputs and outputs.
     from utils.llm import get_client
-    out = answer_question(question, get_conn(), get_client())
+    out = answer(question, get_conn(), get_client())
     if out["error"]:
         raise ToolError(f"Could not answer: {out['error']}")
     return {"answer": out["answer"], "cypher": out["cypher"], "rows": out["results"][:MAX_ROWS]}

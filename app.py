@@ -70,6 +70,9 @@ def get_openai_client():
         st.error(f"🔑 {e}")
         st.stop()
 
+mode = st.sidebar.radio("Answer with", ["single", "agent"], format_func={
+    "single": "Single query (one generated Cypher query)", "agent": "Agent loop (chooses tools step by step)"}.get)
+
 conn = get_neo4j_connection()
 client = get_openai_client()
 
@@ -94,6 +97,20 @@ if question := st.chat_input("e.g. Which circulars modify the SEBI Act?"):
     st.session_state.messages.append({"role": "user", "content": question})
     with st.chat_message("user"):
         st.markdown(question)
+
+    if mode == "agent":
+        from agent.loop import run_agent
+        with st.chat_message("assistant"):
+            with st.spinner("Agent is looking things up..."):
+                out = run_agent(question, conn, client)
+            with st.expander(f"{len(out['tool_calls'])} tool calls · {out['steps']} model calls · {out['tokens']} tokens"):
+                for c in out["tool_calls"]:
+                    st.markdown(f"**{c['tool']}** `{c['args']}` → "
+                                f"{str(c['result_rows']) + ' rows' if c['ok'] else c['error']}")
+            reply = out["answer"] or f"⚠️ Stopped without an answer ({out['stop_reason']})."
+            st.markdown(reply)
+            st.session_state.messages.append({"role": "assistant", "content": reply})
+        st.stop()
 
     # Generate Cypher & query graph
     with st.chat_message("assistant"):
