@@ -280,3 +280,16 @@ def test_daily_limit_is_not_turned_into_a_failed_answer(conn):
 
     with pytest.raises(RateLimitError):
         ask(OutOfQuota(), conn)
+
+
+def test_out_of_credit_is_not_turned_into_a_failed_answer(conn):
+    import httpx
+    from openai import APIStatusError
+    no_credit = APIStatusError("Payment Required", response=httpx.Response(402, request=httpx.Request("POST", "http://x")), body=None)
+
+    class NoCredit(FakeLLM):
+        def create(self, **kwargs):
+            raise no_credit
+
+    with pytest.raises(APIStatusError):
+        ask(NoCredit(), conn)

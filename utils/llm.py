@@ -123,3 +123,8 @@ def should_retry(e: Exception) -> bool:
     from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
     return isinstance(e, (RateLimitError, APIConnectionError, APITimeoutError, InternalServerError)) \
         and not is_daily_limit(e)
+
+
+def is_account_error(e: Exception) -> bool:
+    """Out of credit (402) or a bad / unauthorised key (401, 403): not the agent's fault, and retrying won't help."""
+    return getattr(e, "status_code", None) in (401, 402, 403)

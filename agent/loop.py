@@ -35,7 +35,7 @@ from typing import Any, Literal, TypedDict
 from openai import APIConnectionError, APITimeoutError, BadRequestError, InternalServerError, RateLimitError
 from pydantic import ConfigDict, ValidationError, create_model
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
-from utils.llm import should_retry
+from utils.llm import is_account_error, should_retry
 
 from langgraph.graph import END, StateGraph
 
@@ -245,6 +245,8 @@ def build_agent(client, model: str, max_steps: int = MAX_STEPS, token_budget: in
                             "bad_tool_retries": state.get("bad_tool_retries", 0) + 1}
                 return {"stop_reason": "llm_error", "error": f"{type(e).__name__}: {e}", "steps": state["steps"] + 1}
             except Exception as e:  # network errors after retries, anything unexpected
+                if is_account_error(e):
+                    raise  # out of credit (402) or a bad key: not an agent failure, the caller stops the run
                 return {"stop_reason": "llm_error", "error": f"{type(e).__name__}: {e}",
                         "steps": state["steps"] + 1}
             usage = getattr(r, "usage", None)

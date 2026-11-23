@@ -39,7 +39,7 @@ from openai import BadRequestError, RateLimitError, APIConnectionError, APITimeo
 from agent.loop import is_no_answer
 from query_graph import answer, get_live_schema, is_read_only
 from utils.llm import (JUDGE_MODEL, PRO_MODEL, QUERY_MODEL, QUERY_PROVIDER, CountingClient, get_client,
-                       is_daily_limit, should_retry)
+                       is_account_error, is_daily_limit, should_retry)
 from utils.neo4j_client import Neo4jConnection
 from utils.tracing import setup_tracing, trace
 
@@ -231,6 +231,12 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
                 print(f"\nStopped at {item['id']} run {rep + 1}: {'daily limit' if is_daily_limit(e) else 'rate limit'} "
                       f"reached ({str(e)[:200]}). {len(rows)} question runs saved; re-run the same command to resume.")
                 raise SystemExit(3)
+            except Exception as e:
+                if not is_account_error(e):
+                    raise
+                print(f"\nStopped at {item['id']} run {rep + 1}: account problem ({str(e)[:200]}), e.g. out of credit "
+                      f"or a bad key. {len(rows)} question runs saved; fix it and re-run the same command to resume.")
+                raise SystemExit(4)
             used = client.since(mark)
             trace_id = mlflow.get_last_active_trace_id()
             blob = _norm(json.dumps(out["results"], default=str, ensure_ascii=False))

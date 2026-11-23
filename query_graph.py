@@ -3,7 +3,7 @@ import re
 from dotenv import load_dotenv
 from openai import OpenAI, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError
 from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
-from utils.llm import should_retry
+from utils.llm import is_account_error, should_retry
 from utils.llm import QUERY_MODEL, get_client
 from utils.neo4j_client import Neo4jConnection
 from utils.tracing import setup_tracing, trace
@@ -102,6 +102,8 @@ User Question: {question}"""
     except RateLimitError:
         raise  # out of quota is not a bad question: let the caller (CLI, eval runner) decide
     except Exception as e:
+        if is_account_error(e):
+            raise
         print(f"\n  Cypher generation failed: {e}")
         return ""
 
@@ -124,6 +126,8 @@ Neo4j Results:
     except RateLimitError:
         raise
     except Exception as e:
+        if is_account_error(e):
+            raise
         return f"Error synthesizing answer: {e}"
 
 @trace(span_type="AGENT")
