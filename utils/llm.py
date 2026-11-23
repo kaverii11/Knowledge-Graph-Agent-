@@ -37,7 +37,10 @@ def get_client(role: str = "default") -> OpenAI:
         account, token = os.getenv("CLOUDFLARE_ACCOUNT_ID"), os.getenv("CLOUDFLARE_API_TOKEN")
         if not account or not token:
             raise RuntimeError("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env")
-        return OpenAI(api_key=token, base_url=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1")
+        client = OpenAI(api_key=token, base_url=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1")
+        # Workers AI caps a reply at 256 tokens unless told otherwise; gpt-oss spends that on its reasoning and
+        # returns no answer. Groq has no such default cap.
+        return _Pinned(client, {}, defaults={"max_tokens": int(os.getenv("CLOUDFLARE_MAX_TOKENS", "8192"))})
     if role == "query" and QUERY_PROVIDER == "openrouter":
         if not os.getenv("OPENROUTER_API_KEY"):
             raise RuntimeError("Set OPENROUTER_API_KEY in .env")
@@ -51,16 +54,19 @@ def get_client(role: str = "default") -> OpenAI:
 
 
 class _Pinned:
-    """Adds OpenRouter routing options to every chat call, so a run never silently moves to another host."""
+    """Adds provider options to every chat call: OpenRouter routing (so a run never silently moves to another
+    host) or default parameters a provider needs (Cloudflare's reply-length cap)."""
 
-    def __init__(self, client: OpenAI, extra_body: dict):
+    def __init__(self, client: OpenAI, extra_body: dict, defaults: dict | None = None):
         from types import SimpleNamespace
-        self._client, self._extra = client, extra_body
+        self._client, self._extra, self._defaults = client, extra_body, defaults or {}
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
         self.beta = client.beta
 
     def _create(self, **kwargs):
-        kwargs["extra_body"] = {**self._extra, **(kwargs.get("extra_body") or {})}
+        kwargs = {**self._defaults, **kwargs}
+        if self._extra:
+            kwargs["extra_body"] = {**self._extra, **(kwargs.get("extra_body") or {})}
         return self._client.chat.completions.create(**kwargs)
 
 
