@@ -1,7 +1,7 @@
 """How often does the LLM judge agree with a human? No LLM calls.
 
 1. Export a sample of judged answers to label by hand (the judge's verdict is NOT in the sheet):
-       python evals/judge_agreement.py export results/single_all.json results/agent_all.json --n 20
+       python evals/judge_agreement.py export            # samples the rows in results/comparison.json
    -> evals/results/judge_labels.csv  (fill in the `human` column: correct / partial / incorrect)
 2. Score agreement:
        python evals/judge_agreement.py score
@@ -21,11 +21,16 @@ SHEET = os.path.join(HERE, "results", "judge_labels.csv")
 LABELS = ("correct", "partial", "incorrect")
 
 
-def export(paths: list[str], n: int, seed: int = 7):
+def _rows(paths: list[str]) -> list[dict]:
     rows = []
     for p in paths:
-        rows += json.load(open(p if os.path.isabs(p) else os.path.join(HERE, p)))["rows"]
-    rows = [r for r in rows if r.get("run", 1) == 1]
+        r = json.load(open(p if os.path.isabs(p) else os.path.join(HERE, p)))["rows"]
+        rows += [x for v in r.values() for x in v] if isinstance(r, dict) else r  # comparison.json: {mode: rows}
+    return rows
+
+
+def export(paths: list[str], n: int, seed: int = 7):
+    rows = _rows(paths)
     rng = random.Random(seed)
     groups = {}
     for r in rows:
@@ -56,10 +61,7 @@ def kappa(a: list, b: list) -> float | None:
 
 
 def score(paths: list[str]):
-    verdicts = {}
-    for p in paths:
-        for r in json.load(open(p if os.path.isabs(p) else os.path.join(HERE, p)))["rows"]:
-            verdicts[f"{r['mode']}|{r['id']}|{r.get('run', 1)}"] = r["verdict"]
+    verdicts = {f"{r['mode']}|{r['id']}|{r.get('run', 1)}": r["verdict"] for r in _rows(paths)}
     labelled = [r for r in csv.DictReader(open(SHEET, encoding="utf-8")) if r["human"].strip()]
     bad = [r["human"] for r in labelled if r["human"].strip().lower() not in LABELS]
     if bad:
@@ -83,7 +85,7 @@ def score(paths: list[str]):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("action", choices=["export", "score"])
-    ap.add_argument("results", nargs="*", default=["results/single_all.json", "results/agent_all.json"])
+    ap.add_argument("results", nargs="*", default=["results/comparison.json"])
     ap.add_argument("--n", type=int, default=20)
     a = ap.parse_args()
     export(a.results, a.n) if a.action == "export" else score(a.results)
