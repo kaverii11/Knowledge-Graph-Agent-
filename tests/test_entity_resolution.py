@@ -54,3 +54,30 @@ def test_two_graph_nodes_shown_to_be_one_document_are_merged():
     out = resolve_circulars([ref("Master Circular for FPIs, DDPs and Eligible Foreign Investors dated May 30, 2024")], existing)
     assert out["merge_existing"] == {MC_NUMBER: "FPI Master Circular"}  # the name is kept, not the bare number
     assert set(out["mapping"].values()) == {"FPI Master Circular"}
+
+
+def test_short_name_from_hyphenated_words():
+    long = ("SEBI Master Circular for Issue and Listing of Non-Convertible Securities, Securitised Debt Instruments, "
+            "Security Receipts, Municipal Debt Securities and Commercial Paper dated October 15, 2025")
+    out = resolve_circulars([ref(long), ref("NCS Master Circular", page=3)])
+    assert len(set(out["mapping"].values())) == 1
+
+
+def test_lexical_treats_sebi_and_its_full_name_as_the_same():
+    assert lexical_similarity("Securities and Exchange Board of India (Issue and Listing of Non-Convertible Securities) "
+                              "Regulations, 2021", "SEBI (Issue and Listing of Non-Convertible Securities) Regulations, 2021") > 0.9
+
+
+def test_new_spelling_of_a_regulation_joins_the_one_in_the_graph():
+    from graph_db import resolve_entities
+    refs = [{"title": "SEBI (Issue and Listing of Non-Convertible Securities) Regulations, 2021", "reference_type": "regulation"}]
+    known = ["Securities and Exchange Board of India (Issue and Listing of Non-Convertible Securities) Regulations, 2021"]
+    out = resolve_entities(refs, client=None, existing_names=known)
+    assert out[0]["title"] == known[0]
+
+
+def test_stored_number_is_kept_when_another_spelling_arrives():
+    existing = [{"name": "FPI Master Circular", "aliases": [], "number": MC_NUMBER, "date": "2024-May-30"}]
+    other = "SEBI/HO/AFD/AFD-PoD-2/P/CIR/P/2024/70"
+    out = resolve_circulars([ref(f"Master Circular for FPIs, DDPs and Eligible Foreign Investors No. {other} dated May 30, 2024")], existing)
+    assert out["meta"]["FPI Master Circular"]["number"] == MC_NUMBER

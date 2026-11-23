@@ -1,0 +1,137 @@
+[
+  {
+    "title": "Guidance Note on FATCA and CRS dated July 24, 2026",
+    "reference_type": "unknown",
+    "context_snippet": "Guidance Note on FATCA and CRS issued by the Central Board of Direct Taxes",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Circular no. SEBI/HO/MIRSD/SECFATF/P/CIR/2024/12 dated February 20, 2024",
+    "reference_type": "circular",
+    "context_snippet": "Circular no. SEBI/HO/MIRSD/SECFATF/P/CIR/2024/12 dated February 20, 2024",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Circular no. CIR/MIRSD/3/2015 dated September 10, 2015",
+    "reference_type": "circular",
+    "context_snippet": "Circular no. CIR/MIRSD/3/2015 dated September 10, 2015",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Foreign Account Tax Compliance Act (FATCA)",
+    "reference_type": "act",
+    "context_snippet": "Reporting requirement under Foreign Account Tax Compliance Act (FATCA) and Common Reporting Standard (CRS) revised through Income-Tax Act, 2025 read with Income-Tax Rules, 2026",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Income-tax Rules, 2026",
+    "reference_type": "regulation",
+    "context_snippet": "Rules 238 to 240 of the IT Rules, 2026",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Common Reporting Standards",
+    "reference_type": "regulation",
+    "context_snippet": "Common Reporting Standards (\"CRS\")",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Income-Tax Act, 2025",
+    "reference_type": "act",
+    "context_snippet": "Reporting requirement under Foreign Account Tax Compliance Act (FATCA) and Common Reporting Standard (CRS) revised through Income-Tax Act, 2025 read with Income-Tax Rules, 2026",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Income Tax Act, 1961",
+    "reference_type": "act",
+    "context_snippet": "the Income Tax Act, 1961, read with the Income Tax Rules, 1962",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Guidance Note on FATCA and CRS dated July 24, 2026",
+    "reference_type": "unknown",
+    "context_snippet": "Guidance Note on FATCA and CRS dated July 24, 2026, providing guidance to Reporting Financial Institutions (RFIs)",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "reference_type": "act",
+    "context_snippet": "Section 11(1) of Chapter IV of the Securities and Exchange Board of India Act, 1992",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Foreign Account Tax Compliance Act",
+    "reference_type": "act",
+    "context_snippet": "FATCA certification",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Common Reporting Standard",
+    "reference_type": "unknown",
+    "context_snippet": "CRS certification",
+    "relation": "references",
+    "confidence_score": 0.9,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Income-tax Rules, 2026",
+    "reference_type": "regulation",
+    "context_snippet": "Rule 239(12)(a) of the Income-tax Rules, 2026",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Circular no. CIR/MIRSD/2/2015 dated August 26, 2015",
+    "reference_type": "circular",
+    "context_snippet": "SEBI, vide Circular no. CIR/MIRSD/2/2015 dated August 26, 2015, Circular no. CIR/MIRSD/3/2015 dated September 10, 2015 ...",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "manual_correction"
+  },
+  {
+    "title": "Income-tax Rules, 1962",
+    "reference_type": "regulation",
+    "context_snippet": "Section 285BA of the Income-Tax Act, 1961, read with Rule 114F to 114H, and Form 61B of the Income-Tax Rules, 1962",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "manual_correction"
+  }
+]

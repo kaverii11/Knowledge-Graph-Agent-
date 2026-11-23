@@ -31,16 +31,17 @@ def _words(title: str) -> set:
 
 
 def _acronyms(title: str) -> set:
-    """'Foreign Portfolio Investors' -> 'fpi' (runs of 2+ capitalised words)."""
+    """'Foreign Portfolio Investors' -> 'fpi', 'Non-Convertible Securities' -> 'ncs' (runs of 2+ capitalised
+    words; a hyphen separates words)."""
     out = set()
-    for run in re.findall(r"(?:[A-Z][a-z]+\s+){1,5}[A-Z][a-z]+", title):
+    for run in re.findall(r"(?:[A-Z][a-z]+\s+){1,5}[A-Z][a-z]+", title.replace("-", " ")):
         out.add("".join(w[0] for w in run.split()).lower())
     return out
 
 
 def _short_name_of(short: str, long: str) -> bool:
     """'FPI Master Circular' is a short name of 'Master Circular for Foreign Portfolio Investors, ...'."""
-    s, l = _words(short), _words(long) | _acronyms(long)
+    s, l = _words(short), _words(long) | {a.rstrip("s") for a in _acronyms(long)}  # same plural rule as _words
     return len(s) >= 2 and s < l and bool(s - {"circular", "master"})
 
 
@@ -76,13 +77,15 @@ def resolve_circulars(refs: list, existing: list | None = None) -> dict:
             d = {tuple(d)}
         nodes.append({"titles": {e["name"], *(e.get("aliases") or [])},
                       "numbers": {e["number"]} if e.get("number") else set(),
-                      "dates": d or set(), "existing": {e["name"]}})
+                      "dates": d or set(), "existing": {e["name"]},
+                      "existing_numbers": {e["number"]} if e.get("number") else set()})
     for r in refs:
         if r.get("reference_type") != "circular":
             continue
         ev = evidence(r)
         nodes.append({"titles": {r["title"]}, "numbers": {ev["number"]} if ev["number"] else set(),
-                      "dates": {(k, ev["date"]) for k in ev["kinds"]} if ev["date"] else set(), "existing": set()})
+                      "dates": {(k, ev["date"]) for k in ev["kinds"]} if ev["date"] else set(), "existing": set(),
+                      "existing_numbers": set()})
 
     def same(a, b):
         if a["numbers"] & b["numbers"] or a["dates"] & b["dates"]:
@@ -97,7 +100,7 @@ def resolve_circulars(refs: list, existing: list | None = None) -> dict:
                 if same(nodes[i], nodes[j]):
                     a, b = nodes[i], nodes.pop(j)
                     a["titles"] |= b["titles"]; a["numbers"] |= b["numbers"]; a["dates"] |= b["dates"]
-                    a["existing"] |= b["existing"]
+                    a["existing"] |= b["existing"]; a["existing_numbers"] |= b["existing_numbers"]
                     merged = True
                     break
             if merged:
@@ -116,6 +119,7 @@ def resolve_circulars(refs: list, existing: list | None = None) -> dict:
         for t in n["titles"]:
             mapping[t] = canonical
         meta[canonical] = {"aliases": sorted(n["titles"] - {canonical}),
-                           "number": next(iter(n["numbers"]), None),
-                           "date": next(iter(n["dates"]), (None, None))[1]}
+                           # deterministic: keep the number already stored, else the first in sort order
+                           "number": next(iter(sorted(n["existing_numbers"]) or sorted(n["numbers"])), None),
+                           "date": next(iter(sorted(n["dates"])), (None, None))[1]}
     return {"mapping": mapping, "meta": meta, "merge_existing": merge_existing}

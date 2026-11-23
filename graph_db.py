@@ -23,7 +23,9 @@ def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 def _normalize_title(title: str) -> str:
-    t = re.sub(r"[^a-z0-9 ]", " ", title.lower())
+    # "Securities and Exchange Board of India (X) Regulations" and "SEBI (X) Regulations" are one document
+    t = re.sub(r"securities and exchange board of india", "sebi", title.lower())
+    t = re.sub(r"[^a-z0-9 ]", " ", t)
     return " ".join(w for w in t.split() if w not in {"the", "of", "and"})
 
 def lexical_similarity(a: str, b: str) -> float:
@@ -36,7 +38,8 @@ def lexical_similarity(a: str, b: str) -> float:
         return 0.0
     return difflib.SequenceMatcher(None, _normalize_title(a), _normalize_title(b)).ratio()
 
-def resolve_entities(extracted_references: list, client: OpenAI, threshold: float = 0.88) -> list:
+def resolve_entities(extracted_references: list, client: OpenAI, threshold: float = 0.88,
+                     existing_names: list | None = None) -> list:
     """
     Takes a list of reference dictionaries, separates strict SEBI circular IDs,
     and clusters the remaining natural language entities using OpenAI text embeddings
@@ -61,8 +64,12 @@ def resolve_entities(extracted_references: list, client: OpenAI, threshold: floa
         else:
             natural_titles.append(title)
             
+    # Acts / regulations already in the graph (from earlier circulars) take part in the clustering, so a new
+    # spelling of a known document joins it instead of becoming a second node
+    in_graph = set(existing_names or [])
     if not natural_titles:
         return extracted_references
+    natural_titles += sorted(n for n in in_graph if n not in natural_titles and not is_strict_sebi_format(n))
 
     # 2. Get embeddings for all natural language titles; fall back to string similarity
     #    if the provider has no embedding model (EMBED_MODEL=none) or the call fails
@@ -105,7 +112,8 @@ def resolve_entities(extracted_references: list, client: OpenAI, threshold: floa
                 resolved.add(other_title)
                 
         # Determine the canonical name for this cluster (the longest/most descriptive)
-        canonical_name = max(cluster, key=len)
+        known = sorted(t for t in cluster if t in in_graph)
+        canonical_name = known[0] if known else max(cluster, key=len)
         
         # Map all variants in the cluster to the canonical name
         for variant in cluster:
@@ -168,7 +176,8 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
 
     # 0b. Acts / regulations: merge spelling variants (embeddings, or string similarity as a fallback)
     print("Running Entity Resolution on extracted references...")
-    data = resolve_entities(data, client, threshold=0.88)
+    known = conn.execute_query("MATCH (e:Entity) WHERE e.type <> 'circular' RETURN e.name AS name", read_only=True)
+    data = resolve_entities(data, client, threshold=0.88, existing_names=[k["name"] for k in known])
 
     # Create the root Circular node (subject/date come from the .meta.json main.py writes)
     meta_path = json_file.replace(".json", ".meta.json")

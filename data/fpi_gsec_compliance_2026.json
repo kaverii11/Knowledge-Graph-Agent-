@@ -1,0 +1,56 @@
+[
+  {
+    "title": "Master Circular for Foreign Portfolio Investors, Designated Depository Participants and Eligible Foreign Investors No. SEBI/HO/AFD/AFD-PoD-2/P/CIR/P/2024/70 dated May 30, 2024",
+    "reference_type": "circular",
+    "context_snippet": "amended the \u201cMaster Circular for Foreign Portfolio Investors, Designated Depository Participants and Eligible Foreign Investors\u201d No. SEBI/HO/AFD/AFD-PoD-2/P/CIR/P/2024/70 dated May 30, 2024",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Reserve Bank of India vide circular dated June 05, 2026",
+    "reference_type": "circular",
+    "context_snippet": "Reserve Bank of India vide circular dated June 05, 2026",
+    "relation": "references",
+    "confidence_score": 0.95,
+    "page_number": 1,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "reference_type": "regulation",
+    "context_snippet": "Regulations 22(1), 22(3), 22(5) and 44 of SEBI (Foreign Portfolio Investors) Regulations, 2019",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Securities and Exchange Board of India Act, 1992",
+    "reference_type": "act",
+    "context_snippet": "Section 11(1) of the Securities and Exchange Board of India Act, 1992",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "Master Circular for Foreign Portfolio Investors, Designated Depository Participants and Eligible Foreign Investors No. SEBI/HO/AFD/AFD-PoD-2/P/CIR/P/2024/70 dated May 30, 2024",
+    "reference_type": "circular",
+    "context_snippet": "the aforementioned sub-para under Para 1 of Part A of the Master Circular stands modified as follows:",
+    "relation": "modifies",
+    "confidence_score": 0.95,
+    "page_number": 2,
+    "extraction_method": "fast_llm"
+  },
+  {
+    "title": "SEBI circular dated September 10, 2025",
+    "reference_type": "circular",
+    "context_snippet": "SEBI vide circular dated September 10, 2025 amended the \u201cMaster Circular for Foreign Portfolio Investors, ...",
+    "relation": "references",
+    "confidence_score": 1.0,
+    "page_number": 1,
+    "extraction_method": "manual_correction"
+  }
+]
