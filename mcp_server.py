@@ -75,8 +75,8 @@ def list_circulars() -> list[dict]:
     """List every SEBI circular in the graph: circular number, subject, date and how many documents it cites."""
     return _read(
         "MATCH (c:Circular) OPTIONAL MATCH (c)-[:CONTAINS]->(:Clause)-[]->(e:Entity) "
-        "RETURN c.id AS circular_id, c.subject AS subject, c.date AS date, count(DISTINCT e) AS documents_cited "
-        "ORDER BY c.date DESC"
+        "RETURN c.id AS circular_id, c.subject AS subject, c.date AS date, toString(c.issued) AS issued, "
+        "count(DISTINCT e) AS documents_cited ORDER BY issued DESC"
     )
 
 
@@ -126,7 +126,7 @@ def who_cites(
         "WHERE toLower(e.name) CONTAINS toLower($k) "
         "OR any(a IN coalesce(e.aliases, []) WHERE toLower(a) CONTAINS toLower($k)) "
         "RETURN DISTINCT c.id AS circular_id, c.subject AS subject, c.date AS date, e.name AS document, "
-        "type(r) AS relation, cl.page_number AS page ORDER BY date DESC LIMIT $limit",
+        "type(r) AS relation, cl.page_number AS page, toString(c.issued) AS issued ORDER BY issued DESC LIMIT $limit",
         {"k": document, "limit": MAX_ROWS},
     )
 

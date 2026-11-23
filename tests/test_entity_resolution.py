@@ -81,3 +81,9 @@ def test_stored_number_is_kept_when_another_spelling_arrives():
     other = "SEBI/HO/AFD/AFD-PoD-2/P/CIR/P/2024/70"
     out = resolve_circulars([ref(f"Master Circular for FPIs, DDPs and Eligible Foreign Investors No. {other} dated May 30, 2024")], existing)
     assert out["meta"]["FPI Master Circular"]["number"] == MC_NUMBER
+
+
+def test_iso_date_for_sorting():
+    from graph_db import iso_date
+    assert iso_date("September 07, 2026") == "2026-09-07" and iso_date("November  11,2026") == "2026-11-11"
+    assert iso_date("2026") is None and iso_date(None) is None

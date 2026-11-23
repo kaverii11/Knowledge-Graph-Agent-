@@ -129,6 +129,15 @@ def resolve_entities(extracted_references: list, client: OpenAI, threshold: floa
             
     return extracted_references
 
+def iso_date(text: str | None) -> str | None:
+    """'October 7, 2026' -> '2026-10-07', so circulars can be sorted by date (the text form sorts by month name)."""
+    from datetime import datetime
+    try:
+        return datetime.strptime(" ".join((text or "").replace(",", ", ").split()), "%B %d, %Y").date().isoformat()
+    except ValueError:
+        return None
+
+
 def merge_entity_nodes(conn, old: str, keep: str):
     """Move every REFERENCES / MODIFIES link from Entity `old` to Entity `keep`, keep old's names as
     aliases, then delete `old`. Plain Cypher (no APOC)."""
@@ -183,8 +192,10 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
     meta_path = json_file.replace(".json", ".meta.json")
     meta = json.load(open(meta_path, encoding="utf-8")) if os.path.exists(meta_path) else {}
     conn.execute_query(
-        "MERGE (c:Circular {id: $circular_id}) SET c.subject = $subject, c.date = $date, c.source_pdf = $pdf",
-        {"circular_id": circular_id, "subject": meta.get("subject"), "date": meta.get("date"), "pdf": meta.get("source_pdf")})
+        "MERGE (c:Circular {id: $circular_id}) SET c.subject = $subject, c.date = $date, c.source_pdf = $pdf, "
+        "c.issued = CASE WHEN $iso IS NULL THEN null ELSE date($iso) END",
+        {"circular_id": circular_id, "subject": meta.get("subject"), "date": meta.get("date"), "pdf": meta.get("source_pdf"),
+         "iso": iso_date(meta.get("date"))})
 
     for item in data:
         page_number = item.get("page_number", -1)
