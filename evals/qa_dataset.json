@@ -2,13 +2,19 @@
   {
     "id": "q01",
     "question": "Which circulars refer to the Securities and Exchange Board of India Act, 1992?",
-    "expected": "All three circulars: HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 (Oct 30, 2026), HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026) and HO/(201)2026-DDHS-POD1/I/24467/2026 (Oct 27, 2026).",
+    "expected": "All seven circulars in the graph: I/19251/2026 (Aug 20), I/20296/2026 (Sep 7), I/23122/2026 and I/23125/2026 (Oct 7), I/24467/2026 (Oct 27), I/24814/2026 (Oct 30) and I/25560/2026 (Nov 11, 2026).",
     "must_retrieve": [
-      "24814/2026",
       "19251/2026",
-      "24467/2026"
+      "20296/2026",
+      "23122/2026",
+      "23125/2026",
+      "24467/2026",
+      "24814/2026",
+      "25560/2026"
     ],
-    "expected_tool": "who_cites"
+    "expected_tool": "who_cites",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(:Clause)-[]->(:Entity {name:'Securities and Exchange Board of India Act, 1992'}) RETURN DISTINCT split(c.id,'/')[-2]+'/'+split(c.id,'/')[-1] AS circular, c.date AS date",
+    "split": "regression"
   },
   {
     "id": "q02",
@@ -17,26 +23,35 @@
     "must_retrieve": [
       "19251/2026"
     ],
-    "expected_tool": "who_cites"
+    "expected_tool": "who_cites",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(:Clause)-[]->(e:Entity) WHERE e.name STARTS WITH 'Information Technology Act' RETURN DISTINCT split(c.id,'/')[-2]+'/'+split(c.id,'/')[-1] AS circular",
+    "split": "regression"
   },
   {
     "id": "q03",
     "question": "Which circulars refer to the SEBI (Foreign Portfolio Investors) Regulations, 2019?",
-    "expected": "The two FPI circulars: HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 and HO/19/34/14(8)2026-AFD-POD2/I/19251/2026.",
+    "expected": "The three FPI circulars: HO/19/34/14(8)2026-AFD-POD2/I/19251/2026, HO/(485)2026-AFD-POD2/I/20296/2026 and HO/19/34/14(10)2026-AFD-POD3/I/24814/2026.",
     "must_retrieve": [
-      "24814/2026",
-      "19251/2026"
+      "19251/2026",
+      "20296/2026",
+      "24814/2026"
     ],
-    "expected_tool": "who_cites"
+    "expected_tool": "who_cites",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(:Clause)-[]->(:Entity {name:'SEBI (Foreign Portfolio Investors) Regulations, 2019'}) RETURN DISTINCT split(c.id,'/')[-2]+'/'+split(c.id,'/')[-1] AS circular",
+    "split": "regression"
   },
   {
     "id": "q04",
     "question": "Which circulars modify the FPI Master Circular?",
-    "expected": "Both FPI circulars modify it: HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026, Para 9(B)(iv) of Part B) and HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 (Oct 30, 2026, KYC review periodicity).",
+    "expected": "Three circulars: HO/19/34/14(8)2026-AFD-POD2/I/19251/2026 (Aug 20, 2026, Para 9(B)(iv) of Part B), HO/(485)2026-AFD-POD2/I/20296/2026 (Sep 7, 2026, FPIs investing only in Government Securities) and HO/19/34/14(10)2026-AFD-POD3/I/24814/2026 (Oct 30, 2026, KYC review periodicity).",
     "must_retrieve": [
-      "19251/2026"
+      "19251/2026",
+      "20296/2026",
+      "24814/2026"
     ],
-    "expected_tool": "who_cites"
+    "expected_tool": "who_cites",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(:Clause)-[:MODIFIES]->(:Entity {name:'FPI Master Circular'}) RETURN DISTINCT split(c.id,'/')[-2]+'/'+split(c.id,'/')[-1] AS circular, c.date AS date",
+    "split": "regression"
   },
   {
     "id": "q05",
@@ -46,7 +61,9 @@
       "Debenture Trustees) Regulations, 1993",
       "(Amendment) Regulations, 2025"
     ],
-    "expected_tool": "circular_references"
+    "expected_tool": "circular_references",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(:Clause)-[]->(e:Entity {type:'regulation'}) WHERE c.id ENDS WITH '24467/2026' RETURN DISTINCT e.name AS regulation",
+    "split": "regression"
   },
   {
     "id": "q06",
@@ -56,16 +73,20 @@
       "November 25, 2025",
       "April 28, 2026"
     ],
-    "expected_tool": "circular_references"
+    "expected_tool": "circular_references",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(:Clause)-[]->(e:Entity {type:'circular'}) WHERE c.id ENDS WITH '24467/2026' RETURN DISTINCT e.name AS circular",
+    "split": "regression"
   },
   {
     "id": "q07",
     "question": "How many circulars are in the knowledge graph?",
-    "expected": "Three circulars.",
+    "expected": "Seven circulars.",
     "must_retrieve": [
-      "3"
+      "7"
     ],
-    "expected_tool": "list_circulars"
+    "expected_tool": "list_circulars",
+    "verify_cypher": "MATCH (c:Circular) RETURN count(c) AS circulars",
+    "split": "regression"
   },
   {
     "id": "q08",
@@ -74,14 +95,18 @@
     "must_retrieve": [
       "KYC review"
     ],
-    "expected_tool": "list_circulars"
+    "expected_tool": "list_circulars",
+    "verify_cypher": "MATCH (c:Circular {date:'October 30, 2026'}) RETURN c.id AS id, c.subject AS subject",
+    "split": "regression"
   },
   {
     "id": "q09",
     "question": "Does any circular in the graph reference the Companies Act, 2013?",
     "expected": "No. None of the circulars reference the Companies Act, 2013.",
     "must_retrieve": [],
-    "expected_tool": "search_documents"
+    "expected_tool": "search_documents",
+    "verify_cypher": "MATCH (e:Entity) WHERE toLower(e.name) CONTAINS 'companies act' OR any(a IN coalesce(e.aliases, []) WHERE toLower(a) CONTAINS 'companies act') RETURN count(e) AS companies_act_nodes",
+    "split": "regression"
   },
   {
     "id": "q10",
@@ -90,7 +115,9 @@
     "must_retrieve": [
       "SEBI/HO/AFD/AFD-PoD2/P/CIR/P/2024/70"
     ],
-    "expected_tool": "search_documents"
+    "expected_tool": "search_documents",
+    "verify_cypher": "MATCH (e:Entity {name:'FPI Master Circular'}) RETURN e.number AS number, e.aliases AS aliases",
+    "split": "regression"
   },
   {
     "id": "q11",
@@ -99,16 +126,20 @@
     "must_retrieve": [
       "3"
     ],
-    "expected_tool": "circular_references"
+    "expected_tool": "circular_references",
+    "verify_cypher": "MATCH (c:Circular)-[:CONTAINS]->(cl:Clause)-[]->(:Entity {name:'Securities and Exchange Board of India Act, 1992'}) WHERE c.id ENDS WITH '24814/2026' RETURN DISTINCT cl.page_number AS page",
+    "split": "regression"
   },
   {
     "id": "q12",
-    "question": "Which documents are cited by both FPI circulars?",
+    "question": "Which documents are cited by both the FPI KYC review circular and the FPI digital Power of Attorney circular?",
     "expected": "The SEBI Act, 1992; the SEBI (Foreign Portfolio Investors) Regulations, 2019; and the FPI Master Circular (May 30, 2024).",
     "must_retrieve": [
       "Foreign Portfolio Investors) Regulations, 2019",
       "Master Circular"
     ],
-    "expected_tool": "run_cypher"
+    "expected_tool": "run_cypher",
+    "verify_cypher": "MATCH (a:Circular)-[:CONTAINS]->(:Clause)-[]->(e:Entity)<-[]-(:Clause)<-[:CONTAINS]-(b:Circular) WHERE a.id ENDS WITH '24814/2026' AND b.id ENDS WITH '19251/2026' RETURN DISTINCT e.name AS document",
+    "split": "regression"
   }
 ]

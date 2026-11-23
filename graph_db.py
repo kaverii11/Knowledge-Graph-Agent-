@@ -129,6 +129,22 @@ def resolve_entities(extracted_references: list, client: OpenAI, threshold: floa
             
     return extracted_references
 
+def apply_load_corrections(data: list, json_file: str) -> list:
+    """Hand corrections from load_corrections.json (next to the JSON file), for references whose hand label
+    disagrees with the extraction. The JSON file itself stays the raw prediction the extraction eval scores."""
+    path = os.path.join(os.path.dirname(os.path.abspath(json_file)), "load_corrections.json")
+    if not os.path.exists(path):
+        return data
+    for fix in json.load(open(path, encoding="utf-8")):
+        if fix["file"] != os.path.basename(json_file):
+            continue
+        for ref in data:
+            if ref.get("page_number") == fix["page"] and fix["title_contains"] in ref.get("title", ""):
+                print(f"  [Correction] p{fix['page']} '{ref['title'][:50]}': {fix['set']}")
+                ref.update(fix["set"])
+    return data
+
+
 def iso_date(text: str | None) -> str | None:
     """'October 7, 2026' -> '2026-10-07', so circulars can be sorted by date (the text form sorts by month name)."""
     from datetime import datetime
@@ -163,6 +179,8 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
     except FileNotFoundError:
         print(f"File {json_file} not found. Have you run the extractor yet?")
         return
+
+    data = apply_load_corrections(data, json_file)
 
     # 0a. Circulars: link names, short names and circular numbers of the same document,
     #     including documents already in the graph from earlier circulars

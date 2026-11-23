@@ -87,3 +87,16 @@ def test_iso_date_for_sorting():
     from graph_db import iso_date
     assert iso_date("September 07, 2026") == "2026-09-07" and iso_date("November  11,2026") == "2026-11-11"
     assert iso_date("2026") is None and iso_date(None) is None
+
+
+def test_load_corrections_apply_only_to_their_file(tmp_path):
+    import json
+    from graph_db import apply_load_corrections
+    (tmp_path / "load_corrections.json").write_text(json.dumps([{"file": "a.json", "page": 1, "title_contains": "Master",
+                                                                  "set": {"relation": "modifies"}, "reason": "test"}]))
+    refs = lambda: [{"page_number": 1, "title": "FPI Master Circular", "relation": "references"},
+                    {"page_number": 2, "title": "FPI Master Circular", "relation": "references"}]
+    a = apply_load_corrections(refs(), str(tmp_path / "a.json"))
+    b = apply_load_corrections(refs(), str(tmp_path / "b.json"))
+    assert [r["relation"] for r in a] == ["modifies", "references"]
+    assert [r["relation"] for r in b] == ["references", "references"]

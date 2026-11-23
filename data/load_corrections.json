@@ -1,0 +1,9 @@
+[
+  {
+    "file": "fpi_kyc_review_2026.json",
+    "page": 1,
+    "title_contains": "Master Circular",
+    "set": {"relation": "modifies"},
+    "reason": "Hand label (evals/ground_truth): the KYC review circular modifies the FPI Master Circular; extraction labelled it 'references'. Applied at load time so the extraction eval still scores the raw prediction."
+  }
+]
