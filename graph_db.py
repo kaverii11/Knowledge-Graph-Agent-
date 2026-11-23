@@ -121,6 +121,21 @@ def resolve_entities(extracted_references: list, client: OpenAI, threshold: floa
             
     return extracted_references
 
+def merge_entity_nodes(conn, old: str, keep: str):
+    """Move every REFERENCES / MODIFIES link from Entity `old` to Entity `keep`, keep old's names as
+    aliases, then delete `old`. Plain Cypher (no APOC)."""
+    for rel in ("REFERENCES", "MODIFIES"):
+        conn.execute_query(
+            f"MATCH (cl:Clause)-[r:{rel}]->(:Entity {{name: $old}}) MATCH (k:Entity {{name: $keep}}) "
+            f"MERGE (cl)-[:{rel}]->(k) DELETE r", {"old": old, "keep": keep})
+    conn.execute_query(
+        "MATCH (o:Entity {name: $old}), (k:Entity {name: $keep}) "
+        "WITH o, k, coalesce(k.aliases, []) AS ka "
+        "SET k.aliases = ka + [a IN coalesce(o.aliases, []) + o.name WHERE a <> k.name AND NOT a IN ka], "
+        "k.number = coalesce(k.number, o.number), k.date = coalesce(k.date, o.date) "
+        "DETACH DELETE o", {"old": old, "keep": keep})
+
+
 def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_id: str):
     """
     Reads the extracted references and populates the Neo4j Graph.
@@ -137,8 +152,6 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
     existing = conn.execute_query(
         "MATCH (e:Entity {type: 'circular'}) RETURN e.name AS name, e.aliases AS aliases, "
         "e.number AS number, e.date AS date", read_only=True)
-    existing = [dict(e, date=("master" if "master circular" in e["name"].lower() else "circular", e["date"]) if e["date"] else None)
-                for e in existing]  # same (kind, date) shape as new references
     resolved = resolve_circulars(data, existing)
     for item in data:
         if item.get("title") in resolved["mapping"]:
@@ -146,6 +159,12 @@ def ingest_data(conn: Neo4jConnection, client: OpenAI, json_file: str, circular_
             if canonical != item["title"]:
                 print(f"  [Alias Merge] '{item['title']}' -> '{canonical}'")
             item["title"] = canonical
+
+    # Two documents already in the graph can turn out to be one (e.g. a bare circular number loaded
+    # from one circular and its short name from another): fold the extra node into the kept one
+    for old, keep in resolved["merge_existing"].items():
+        print(f"  [Node Merge] '{old}' -> '{keep}'")
+        merge_entity_nodes(conn, old, keep)
 
     # 0b. Acts / regulations: merge spelling variants (embeddings, or string similarity as a fallback)
     print("Running Entity Resolution on extracted references...")

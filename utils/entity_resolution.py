@@ -51,28 +51,38 @@ def evidence(ref: dict) -> dict:
     # Only trust a number from the snippet when it is the only one there
     number = ids_in_title[0] if ids_in_title else (ids_in_snip[0] if len(ids_in_snip) == 1 else None)
     date = _date(title) or (_date(snippet) if number or _kind(title) == "master" else None)
+    return {"number": number, "date": date, "kinds": _kinds_of_name(title)}
+
+
+def _kinds_of_name(title: str) -> set:
     # A bare circular number doesn't say whether it is a master circular, so it can match either
-    kinds = {"master", "circular"} if ids_in_title and len(title) < 60 else {_kind(title)}
-    return {"number": number, "date": date, "kinds": kinds}
+    return {"master", "circular"} if list(find_circular_ids(title)) and len(title) < 60 else {_kind(title)}
 
 
 def resolve_circulars(refs: list, existing: list | None = None) -> dict:
-    """Returns {title: canonical_title} for every circular-type title in refs.
+    """Returns {"mapping": {title: canonical_title}, "meta": {canonical: aliases/number/date},
+    "merge_existing": {graph_name: canonical}} for every circular-type title in refs.
+    merge_existing lists nodes already in the graph that the new references show are the same document.
 
     existing: [{"name", "aliases", "number", "date"}] already in the graph, so documents seen in
     earlier circulars are reused instead of duplicated.
     """
-    nodes = []  # each: {"titles": set, "numbers": set, "dates": set(kind,date), "existing_name": str|None}
+    nodes = []  # each: {"titles": set, "numbers": set, "dates": set(kind,date), "existing": names already in the graph}
     for e in existing or []:
+        d = e.get("date")
+        if isinstance(d, str):  # stored date: work out the kind from the stored name, as evidence() does
+            d = {(k, d) for k in _kinds_of_name(e["name"])}
+        elif d:
+            d = {tuple(d)}
         nodes.append({"titles": {e["name"], *(e.get("aliases") or [])},
                       "numbers": {e["number"]} if e.get("number") else set(),
-                      "dates": {e["date"]} if e.get("date") else set(), "existing_name": e["name"]})
+                      "dates": d or set(), "existing": {e["name"]}})
     for r in refs:
         if r.get("reference_type") != "circular":
             continue
         ev = evidence(r)
         nodes.append({"titles": {r["title"]}, "numbers": {ev["number"]} if ev["number"] else set(),
-                      "dates": {(k, ev["date"]) for k in ev["kinds"]} if ev["date"] else set(), "existing_name": None})
+                      "dates": {(k, ev["date"]) for k in ev["kinds"]} if ev["date"] else set(), "existing": set()})
 
     def same(a, b):
         if a["numbers"] & b["numbers"] or a["dates"] & b["dates"]:
@@ -87,19 +97,25 @@ def resolve_circulars(refs: list, existing: list | None = None) -> dict:
                 if same(nodes[i], nodes[j]):
                     a, b = nodes[i], nodes.pop(j)
                     a["titles"] |= b["titles"]; a["numbers"] |= b["numbers"]; a["dates"] |= b["dates"]
-                    a["existing_name"] = a["existing_name"] or b["existing_name"]
+                    a["existing"] |= b["existing"]
                     merged = True
                     break
             if merged:
                 break
 
-    mapping, meta = {}, {}
+    def readable_first(titles):
+        named = [t for t in titles if not list(find_circular_ids(t)) or len(t) > 60]
+        return max(sorted(named or titles), key=len)
+
+    mapping, meta, merge_existing = {}, {}, {}
     for n in nodes:
-        named = [t for t in n["titles"] if not list(find_circular_ids(t)) or len(t) > 60]
-        canonical = n["existing_name"] or max(named or n["titles"], key=len)
+        # Reuse a node already in the graph when there is one; prefer a name over a bare number
+        canonical = readable_first(n["existing"] or n["titles"])
+        for old in n["existing"] - {canonical}:
+            merge_existing[old] = canonical  # two graph nodes turned out to be one document
         for t in n["titles"]:
             mapping[t] = canonical
         meta[canonical] = {"aliases": sorted(n["titles"] - {canonical}),
                            "number": next(iter(n["numbers"]), None),
                            "date": next(iter(n["dates"]), (None, None))[1]}
-    return {"mapping": mapping, "meta": meta}
+    return {"mapping": mapping, "meta": meta, "merge_existing": merge_existing}
