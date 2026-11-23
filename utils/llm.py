@@ -23,6 +23,8 @@ EMBED_MODEL = os.getenv("EMBED_MODEL", "text-embedding-3-small")
 QUERY_PROVIDER = os.getenv("QUERY_PROVIDER", "default").lower()
 if QUERY_PROVIDER == "cloudflare":
     QUERY_MODEL = os.getenv("CLOUDFLARE_QUERY_MODEL", "@cf/openai/gpt-oss-120b")
+elif QUERY_PROVIDER == "openrouter":
+    QUERY_MODEL = os.getenv("OPENROUTER_QUERY_MODEL", "openai/gpt-oss-120b")
 
 
 def has_llm_key() -> bool:
@@ -36,10 +38,30 @@ def get_client(role: str = "default") -> OpenAI:
         if not account or not token:
             raise RuntimeError("Set CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_API_TOKEN in .env")
         return OpenAI(api_key=token, base_url=f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1")
+    if role == "query" and QUERY_PROVIDER == "openrouter":
+        if not os.getenv("OPENROUTER_API_KEY"):
+            raise RuntimeError("Set OPENROUTER_API_KEY in .env")
+        client = OpenAI(api_key=os.getenv("OPENROUTER_API_KEY"), base_url="https://openrouter.ai/api/v1")
+        host = os.getenv("OPENROUTER_PIN_PROVIDER", "groq")  # same host as direct Groq runs, no fallbacks
+        return _Pinned(client, {"provider": {"order": [host], "allow_fallbacks": False}}) if host else client
     api_key = os.getenv("LLM_API_KEY") or os.getenv("OPENAI_API_KEY")
     if not api_key:
         raise RuntimeError("Set OPENAI_API_KEY (or LLM_API_KEY + LLM_BASE_URL) in .env")
     return OpenAI(api_key=api_key, base_url=os.getenv("LLM_BASE_URL") or None)
+
+
+class _Pinned:
+    """Adds OpenRouter routing options to every chat call, so a run never silently moves to another host."""
+
+    def __init__(self, client: OpenAI, extra_body: dict):
+        from types import SimpleNamespace
+        self._client, self._extra = client, extra_body
+        self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
+        self.beta = client.beta
+
+    def _create(self, **kwargs):
+        kwargs["extra_body"] = {**self._extra, **(kwargs.get("extra_body") or {})}
+        return self._client.chat.completions.create(**kwargs)
 
 
 class CountingClient:

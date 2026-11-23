@@ -250,7 +250,7 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
                    "steps": out.get("steps", used["requests"]), "requests": used["requests"],
                    "prompt_tokens": used["prompt_tokens"], "completion_tokens": used["completion_tokens"],
                    "tokens": used["tokens"], "latency_s": round(latency, 2), "trace_id": trace_id,
-                   "judge_tokens": judge_client.since(jmark)["tokens"]}
+                   "judge_tokens": judge_client.since(jmark)["tokens"], "query_provider": QUERY_PROVIDER}
             rows.append(row)
             if write:
                 os.makedirs(os.path.dirname(partial), exist_ok=True)
@@ -266,7 +266,8 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
     print(json.dumps(metrics["overall"], indent=2))
 
     info = {"mode": mode, "dataset": dataset, "split": split, "repeats": repeats, "query_model": QUERY_MODEL,
-            "query_provider": QUERY_PROVIDER,
+            "query_provider": QUERY_PROVIDER + (f" (pinned to {os.getenv('OPENROUTER_PIN_PROVIDER', 'groq')})"
+                                                if QUERY_PROVIDER == "openrouter" else ""),
             "judge_model": JUDGE_MODEL, "judge_tokens": sum(r.get("judge_tokens", 0) for r in rows)}
     if mode == "agent":
         from agent.loop import MAX_STEPS, TOKEN_BUDGET
