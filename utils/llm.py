@@ -39,11 +39,15 @@ class CountingClient:
         self._client, self.input_tpm = client, input_tpm
         self.calls: list[dict] = []        # all calls ever made through this wrapper
         self.chat = SimpleNamespace(completions=SimpleNamespace(create=self._create))
-        self.beta = getattr(client, "beta", None)
+        beta = getattr(client, "beta", None)
+        self.beta = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(
+            parse=lambda **kw: self._count(beta.chat.completions.parse(**kw), kw)))) if beta else None
 
     def _create(self, **kwargs):
+        return self._count(self._client.chat.completions.create(**kwargs), kwargs)
+
+    def _count(self, r, kwargs):
         import time
-        r = self._client.chat.completions.create(**kwargs)
         u = getattr(r, "usage", None)
         self.calls.append({"t": time.time(), "model": kwargs.get("model"),
                            "prompt": getattr(u, "prompt_tokens", 0) or 0,

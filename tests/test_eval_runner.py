@@ -61,3 +61,10 @@ def test_cohens_kappa():
     from evals.judge_agreement import kappa
     assert kappa(["correct", "incorrect"] * 5, ["correct", "incorrect"] * 5) == 1.0
     assert kappa(["correct", "correct", "incorrect", "incorrect"], ["correct", "incorrect", "correct", "incorrect"]) == 0.0
+
+
+def test_judge_rows_keep_every_distinct_row():
+    from evals.run_agent_evals import compact_rows
+    rows = [{"circular_id": f"I/{i}/2026", "evidence": "x" * 2000} for i in range(20)] * 2
+    text = compact_rows(rows)
+    assert "I/19/2026" in text and "more characters not shown" not in text and text.count("I/0/2026") == 1

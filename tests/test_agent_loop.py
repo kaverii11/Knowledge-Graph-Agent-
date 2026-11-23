@@ -227,3 +227,21 @@ def test_mode_flag_selects_baseline_or_agent(monkeypatch, conn):
 def test_relation_labels_and_dates_are_not_citations():
     rows = [{"circular_id": POA, "date": "August 20, 2026", "relation": "MODIFIES", "type": "circular"}]
     assert find_citations("One circular modifies it, on August 20, 2026.", rows) == []
+
+
+@pytest.mark.parametrize("text", ["No circulars in the knowledge graph are recorded as modifying it.",
+                                  "I’m sorry, but I can’t modify or delete any data in the graph.",
+                                  "The Companies Act, 2013 is not cited by any circular."])
+def test_refusals_and_nothing_found_are_recognised(text):
+    from agent.loop import is_no_answer
+    assert is_no_answer(text)
+
+
+def test_empty_who_cites_says_whether_the_document_exists(conn):
+    from agent.loop import _empty_result_hint
+    fns = {"search_documents": lambda keyword: [{"name": "SEBI (Debenture Trustees) Regulations, 1993"}]
+           if "Trustees" in keyword else []}
+    found = _empty_result_hint(fns, "who_cites", {"document": "Debenture Trustees", "relation": "modifies"})
+    assert "1 matching document" in found and "That is the answer" in found
+    missing = _empty_result_hint(fns, "who_cites", {"document": "Companies Act", "relation": "any"})
+    assert "no document in the graph matches" in missing

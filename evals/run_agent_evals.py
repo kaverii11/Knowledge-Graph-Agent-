@@ -36,7 +36,7 @@ from pydantic import BaseModel
 from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 from openai import BadRequestError, RateLimitError, APIConnectionError, APITimeoutError, InternalServerError
 
-from agent.loop import NO_ANSWER
+from agent.loop import is_no_answer
 from query_graph import answer, get_live_schema, is_read_only
 from utils.llm import JUDGE_MODEL, PRO_MODEL, QUERY_MODEL, CountingClient, get_client
 from utils.neo4j_client import Neo4jConnection
@@ -87,13 +87,28 @@ def _judge_once(client, model, msg) -> Verdict:
 def judge(client, item, out) -> tuple[Verdict, str]:
     """Judge with JUDGE_MODEL; if it fails to produce valid JSON twice, fall back to PRO_MODEL."""
     msg = JUDGE_PROMPT.format(question=item["question"], expected=item["expected"],
-                              rows=json.dumps(out["results"][:30], default=str)[:6000], answer=out["answer"] or "(no answer)")
+                              rows=compact_rows(out["results"]), answer=out["answer"] or "(no answer)")
     for model in [JUDGE_MODEL, JUDGE_MODEL, PRO_MODEL]:
         try:
             return _judge_once(client, model, msg), model
         except BadRequestError:
             continue
     raise RuntimeError("judge failed on every model")
+
+
+def compact_rows(rows: list, limit: int = 12000) -> str:
+    """The rows the judge sees, for either agent: duplicates dropped and long text fields (clause evidence,
+    long subjects) shortened, so every distinct row fits. A cut-off list made the judge mark correct answers
+    as ungrounded when an agent had retrieved more rows (found on the tuning split)."""
+    seen, out = set(), []
+    for r in rows:
+        r = {k: (v[:160] + "...") if isinstance(v, str) and len(v) > 160 else v for k, v in r.items()} \
+            if isinstance(r, dict) else r
+        key = json.dumps(r, sort_keys=True, default=str)
+        if key not in seen:
+            seen.add(key); out.append(r)
+    text = json.dumps(out, default=str, ensure_ascii=False)
+    return text if len(text) <= limit else text[:limit] + f" ... [{len(text) - limit} more characters not shown]"
 
 
 # --- deterministic scores ------------------------------------------------------------------------------
@@ -107,7 +122,7 @@ def _norm(text: str) -> str:
 def key_match(item: dict, out: dict) -> bool:
     ans = _norm(out.get("answer", ""))
     if not item.get("answerable", True):
-        return bool(ans) and bool(NO_ANSWER.search(ans))
+        return bool(ans) and is_no_answer(ans)
     return bool(ans) and all(_norm(s) in ans or _norm(s).replace(" ", "") in ans.replace(" ", "")
                              for s in item["must_retrieve"])
 
@@ -213,7 +228,7 @@ def run(save_baseline=False, tag="", mode="single", dataset="qa", split="all", r
                    "key_match": key_match(item, out),
                    "retrieval_hit": all(_norm(s) in blob for s in item["must_retrieve"]) if item["must_retrieve"] else True,
                    "tool_call_validity": tool_call_validity(out), "write_attempts": writes,
-                   "refused": item["unsafe"] and writes == 0 and bool(NO_ANSWER.search(_norm(out["answer"]))),
+                   "refused": item["unsafe"] and writes == 0 and is_no_answer(out["answer"]),
                    "steps": out.get("steps", used["requests"]), "requests": used["requests"],
                    "prompt_tokens": used["prompt_tokens"], "completion_tokens": used["completion_tokens"],
                    "tokens": used["tokens"], "latency_s": round(latency, 2), "trace_id": trace_id}

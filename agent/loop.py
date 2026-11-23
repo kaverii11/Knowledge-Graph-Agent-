@@ -55,14 +55,16 @@ that circulars cite (an act, a regulation, or another circular, which may have a
 
 How to work:
 - Use the tools to look things up; never answer from memory. Break multi-part questions into steps.
-- list_circulars shows every ingested circular; search_documents finds a document by name, short name or
-  number; circular_references lists what one circular cites; who_cites lists circulars citing a document;
-  run_cypher is for anything the other tools can't do (read-only).
+- Two kinds of thing: ingested circulars (list_circulars shows all of them with number, subject and date;
+  find one by topic there) and the documents they cite (search_documents searches only cited documents by
+  name, short name or number). circular_references lists what one circular cites; who_cites lists the
+  circulars citing a document; run_cypher is for anything the other tools can't do (read-only).
+- An empty result is an answer too: if a tool says nothing matches, don't keep rephrasing the same search.
 - If a tool returns an error, read it and fix the call. Don't repeat a call you have already made.
 - The graph is read-only. If asked to create, change or delete anything, refuse and call no tool.
 - If the graph doesn't contain the answer, say so plainly. Don't guess.
 
-Final answer: short and direct. Cite the circular numbers (the last part, e.g. I/24814/2026, is enough) and
+Final answer: short and direct, and answer every part of the question. Cite the circular numbers (the last part, e.g. I/24814/2026, is enough) and
 document names your answer rests on, and only state what the tool results show."""
 
 LOOP_NUDGE = ("You already called {tool} with these exact arguments; the result is earlier in this conversation. "
@@ -145,9 +147,32 @@ def find_citations(answer: str, rows: list) -> list[str]:
     return cited
 
 
-NO_ANSWER = re.compile(r"\b(no (circular|document|result|record|information|match)|not (found|in the graph|"
-                       r"available|present|contain)|doesn'?t contain|does not contain|couldn'?t find|could not find|"
-                       r"cannot|can'?t|unable|read-only|not able|refuse|not allowed|none of)\b", re.I)
+NO_ANSWER = re.compile(r"\b(no (circular|document|result|record|information|match|regulation|act)s?|not (found|in the graph|"
+                       r"available|present|contain|cited|recorded)|doesn'?t contain|does not contain|couldn'?t find|"
+                       r"could not find|cannot|can'?t|unable|read-only|not able|refuse|not allowed|none of|there are none|"
+                       r"isn'?t cited|is not cited|no circulars?)\b", re.I)
+
+
+def is_no_answer(text: str) -> bool:
+    """A refusal or 'nothing found' answer (curly apostrophes, as models print them, count too)."""
+    return bool(NO_ANSWER.search((text or "").replace("\u2019", "'").replace("\u2018", "'")))
+
+
+def _empty_result_hint(fns: dict, name: str, args: dict) -> str:
+    """who_cites returns [] both when no document matches the words and when the document exists but no
+    circular cites it that way; say which, so the model doesn't keep rephrasing a correct search."""
+    if name != "who_cites":
+        return "[] (no rows matched)"
+    try:
+        docs = fns["search_documents"](keyword=args["document"])
+    except Exception:
+        return "[] (no rows matched)"
+    if not docs:
+        return f"[] (no document in the graph matches '{args['document']}'; try search_documents with fewer words)"
+    names = "; ".join(d["name"] for d in docs[:5])
+    rel = args.get("relation", "any")
+    return (f"[] (the graph has {len(docs)} matching document(s): {names}. No circular cites them with relation "
+            f"'{rel}'. That is the answer for this relation.)")
 
 
 # --- the graph ---------------------------------------------------------------------------------------
@@ -253,7 +278,7 @@ def build_agent(client, model: str, max_steps: int = MAX_STEPS, token_budget: in
                             entry.update(ok=True, result_rows=len(result_rows), result_chars=len(text))
                             if len(text) > MAX_RESULT_CHARS:
                                 text = text[:MAX_RESULT_CHARS] + " ... [truncated: narrow the query]"
-                            content = text if result_rows else "[] (no rows matched)"
+                            content = text if result_rows else _empty_result_hint(fns, name, args)
                         except Exception as e:  # ToolError from the tool, or anything unexpected
                             msg = str(e) or type(e).__name__
                             entry["write_attempt"] = "only read queries" in msg
@@ -273,8 +298,8 @@ def build_agent(client, model: str, max_steps: int = MAX_STEPS, token_budget: in
     def check_answer(state: AgentState) -> AgentState:
         answer = state["messages"][-1].get("content", "").strip()
         cited = find_citations(answer, state["rows"])
-        is_no_answer = bool(NO_ANSWER.search(answer)) or not state["rows"]
-        if not cited and not is_no_answer and not state.get("nudged_cite") and state["steps"] < max_steps:
+        nothing = is_no_answer(answer) or not state["rows"]
+        if not cited and not nothing and not state.get("nudged_cite") and state["steps"] < max_steps:
             return {"messages": state["messages"] + [{"role": "user", "content": CITE_NUDGE}], "nudged_cite": True}
         return {"answer": answer, "citations": cited, "stop_reason": state.get("stop_reason") or "answered"}
 
@@ -343,6 +368,6 @@ def run_agent(question: str, conn=None, client=None, model: str | None = None, m
         "stop_reason": stop,
         "citations": state.get("citations", []),
         "uncited": state.get("answer") is not None and not state.get("citations")
-                   and not NO_ANSWER.search(state.get("answer") or ""),
+                   and not is_no_answer(state.get("answer")),
         "latency_s": round(time.time() - t0, 2),
     }
