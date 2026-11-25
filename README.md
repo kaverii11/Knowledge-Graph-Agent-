@@ -1,5 +1,35 @@
 # SEBI Knowledge Graph Agent
 
+[![tests](https://github.com/kaverii11/Knowledge-Graph-Agent-/actions/workflows/tests.yml/badge.svg)](https://github.com/kaverii11/Knowledge-Graph-Agent-/actions/workflows/tests.yml)
+
+An AI agent that reads Indian market-regulator (SEBI) circulars, builds a knowledge graph of which rules cite or
+change which, and answers multi-step compliance questions over it, with every answer backed by rows from the graph.
+
+## At a glance
+
+| | |
+|---|---|
+| **What it does** | PDF circulars → LLM extraction → Neo4j knowledge graph → an agent that answers questions by calling read-only graph tools, also exposed to other AI apps through an **MCP server** |
+| **Agent vs single-shot** | Multi-hop questions fully correct: **20/20 vs 11/20**; on the 12 held-out questions **12/12 vs 6/12**; grounded 1.00 vs 0.85; unsafe requests refused 3/3 vs 0/3; at 2.6x the tokens ([details](#agent-loop)) |
+| **Extraction quality** | F1 **0.74 → 0.94** on hand-labelled references after fixing the failures the eval found ([details](#results)) |
+| **Evals I can trust** | Every expected answer is proven by a Cypher query on the graph; the LLM judge was checked against my own hand labels (Cohen's kappa 0.77) before using it |
+| **Safety** | Read-only tools + read transactions; Pydantic-validated tool arguments; step, token and loop limits; citation check |
+| **Engineering** | 65 unit tests (no API key or database needed) in CI, an LLM regression gate (`pytest -m llm`), MLflow tracing of every model and tool call |
+| **Stack** | Python, LangGraph, Pydantic, Neo4j, MCP, MLflow, OpenAI-compatible APIs (Groq, Cloudflare Workers AI, `gpt-oss-120b`), Streamlit, Docker, pytest |
+
+Read next: [Agent loop](#agent-loop) (design + guardrails) · [How it was measured](#how-it-was-measured) ·
+[Failure taxonomy](#failure-taxonomy) · [Caveats](#caveats) · [How it works](#how-it-works) · [Setup](#setup)
+
+**Run the tests in a minute** (no keys, no database):
+
+```bash
+git clone https://github.com/kaverii11/Knowledge-Graph-Agent-.git && cd Knowledge-Graph-Agent-
+python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+pytest          # 65 tests: guards, ID parsing, entity resolution, every agent-loop guardrail, the MCP server
+```
+
+## Overview
+
 Turns SEBI (Securities and Exchange Board of India) circulars, which are long and unstructured PDFs, into a **Neo4j knowledge graph** of circulars and the acts, regulations and other circulars they reference or modify. A compliance officer, or another AI agent over **MCP**, can then ask questions like "Which circulars modify the FPI Master Circular?" and get answers backed by the graph.
 Questions are answered either in one step (the model writes one Cypher query) or by an **agent loop** that calls
 read-only tools step by step until it can answer; both are measured on the same questions below.
@@ -154,7 +184,7 @@ questions it answered 2-3 times (25 runs) it was correct every time. That is not
 
 ### Failure taxonomy
 
-From the saved answers, queries and tool calls (`python evals/failure_taxonomy.py results/comparison.json`):
+From the saved answers, queries and tool calls (`python evals/failure_taxonomy.py evals/results/comparison.json`):
 
 | What went wrong (single-shot, 32 questions) | Count | Example |
 |---|---|---|
@@ -307,8 +337,10 @@ pytest -m llm                    # regression gate (needs the LLM key + graph)
 ├── query_graph.py               # Single-shot text-to-Cypher agent + mode switch (terminal)
 ├── mcp_server.py                # MCP server: 6 read-only tools
 ├── app.py                       # Streamlit chat UI
-├── evals/                       # Answer keys, datasets, 3 eval scripts, results, baseline
+├── evals/                       # Answer keys, datasets, eval scripts, baseline
+├── evals/results/               # Saved runs: comparison, judge agreement, failure taxonomy (the numbers above)
 ├── tests/                       # Unit tests + LLM regression gate
+├── .github/workflows/tests.yml  # CI: unit tests on every push
 ├── data/                        # Extraction outputs (PDF download links in data/README.md)
 └── docker-compose.yml           # Local Neo4j
 ```
